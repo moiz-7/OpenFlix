@@ -1,4 +1,4 @@
-# vortex
+# OpenFlix
 
 Generate AI videos from your terminal. Works with every major video generation API — bring your own keys.
 
