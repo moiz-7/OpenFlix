@@ -5,14 +5,14 @@ let package = Package(
     name: "VortexCLI",
     platforms: [.macOS(.v14)],
     products: [
-        .executable(name: "vortex", targets: ["vortex"]),
+        .executable(name: "openflix", targets: ["openflix"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.3.0"),
     ],
     targets: [
         .executableTarget(
-            name: "vortex",
+            name: "openflix",
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ],
