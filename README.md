@@ -2,7 +2,7 @@
 
 **AI video generation from your terminal.** Bring your own API keys, generate videos from six providers, orchestrate multi-shot projects with DAG execution, and plug directly into AI agents via MCP.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
 [![Platform: macOS 14+](https://img.shields.io/badge/platform-macOS%2014%2B-lightgrey)](https://developer.apple.com/macos/)
 [![Swift 5.9+](https://img.shields.io/badge/swift-5.9%2B-orange)](https://swift.org)
 
@@ -904,4 +904,4 @@ New features require:
 
 ## License
 
-MIT. See [LICENSE](LICENSE).
+Source available for reference and personal, non-commercial use only. You may not copy, modify, distribute, sublicense, or use this software in a commercial product without prior written permission from Bubble Research. See [LICENSE](LICENSE).
