@@ -16,7 +16,7 @@ let package = Package(
             dependencies: [
                 .product(name: "ArgumentParser", package: "swift-argument-parser"),
             ],
-            path: "Sources/vortex",
+            path: "Sources/openflix",
             linkerSettings: [
                 .linkedFramework("Security"),
             ]
