@@ -4,15 +4,15 @@ import Foundation
 struct Daemon: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "daemon",
-        abstract: "Manage the vortex daemon for persistent agent connections",
+        abstract: "Manage the openflix daemon for persistent agent connections",
         discussion: """
         The daemon provides a persistent Unix socket server for agent connections.
         Agents can submit jobs, subscribe to events, and manage projects via JSON-RPC.
 
         EXAMPLES
-          vortex daemon start --foreground
-          vortex daemon status
-          vortex daemon stop
+          openflix daemon start --foreground
+          openflix daemon status
+          openflix daemon stop
         """,
         subcommands: [DaemonStart.self, DaemonStop.self, DaemonStatusCmd.self]
     )
@@ -21,7 +21,7 @@ struct Daemon: AsyncParsableCommand {
 struct DaemonStart: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "start",
-        abstract: "Start the vortex daemon"
+        abstract: "Start the openflix daemon"
     )
 
     @Flag(name: .long, help: "Run in foreground (for debugging)")
@@ -54,7 +54,7 @@ struct DaemonStart: AsyncParsableCommand {
         } else {
             // Background: fork/exec is complex in Swift. For now, suggest nohup.
             Output.emitDict([
-                "message": "Use 'nohup vortex daemon start --foreground &' to run in background",
+                "message": "Use 'nohup openflix daemon start --foreground &' to run in background",
                 "socket": DaemonServer.defaultSocketPath,
             ])
         }
@@ -64,7 +64,7 @@ struct DaemonStart: AsyncParsableCommand {
 struct DaemonStop: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "stop",
-        abstract: "Stop the vortex daemon"
+        abstract: "Stop the openflix daemon"
     )
 
     @Flag(name: .long, help: "Pretty-print JSON output")
@@ -94,7 +94,7 @@ struct DaemonStop: AsyncParsableCommand {
 struct DaemonStatusCmd: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "status",
-        abstract: "Check if the vortex daemon is running"
+        abstract: "Check if the openflix daemon is running"
     )
 
     @Flag(name: .long, help: "Pretty-print JSON output")

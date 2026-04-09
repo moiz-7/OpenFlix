@@ -2,7 +2,7 @@ import Foundation
 import Darwin
 
 /// Tracks provider+model quality metrics over time.
-/// Stored at ~/.vortex/metrics.json with file locking.
+/// Stored at ~/.openflix/metrics.json with file locking.
 final class ProviderMetricsStore {
     static let shared = ProviderMetricsStore()
 
@@ -14,7 +14,7 @@ final class ProviderMetricsStore {
 
     private init() {
         let home = FileManager.default.homeDirectoryForCurrentUser
-        let dir = home.appendingPathComponent(".vortex", isDirectory: true)
+        let dir = home.appendingPathComponent(".openflix", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         storeURL = dir.appendingPathComponent("metrics.json")
         lockFileURL = dir.appendingPathComponent("metrics.lock")

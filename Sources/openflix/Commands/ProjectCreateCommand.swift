@@ -10,8 +10,8 @@ struct ProjectCreate: AsyncParsableCommand {
         references in dependencies, validates the DAG, and saves to disk.
 
         EXAMPLES
-          vortex project create --file spec.json
-          cat spec.json | vortex project create
+          openflix project create --file spec.json
+          cat spec.json | openflix project create
         """
     )
 

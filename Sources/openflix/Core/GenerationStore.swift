@@ -2,7 +2,7 @@ import Foundation
 import Darwin
 
 /// JSON-backed persistence for CLI generations.
-/// Stored at ~/.vortex/store.json — readable by any agent or script.
+/// Stored at ~/.openflix/store.json — readable by any agent or script.
 final class GenerationStore {
     static let shared = GenerationStore()
 
@@ -13,8 +13,11 @@ final class GenerationStore {
     private let lock = NSLock()
 
     private init() {
+        // Migrate ~/.vortex/ → ~/.openflix/ on first launch (idempotent)
+        DataMigration.migrateDataDirectoryIfNeeded()
+
         let home = FileManager.default.homeDirectoryForCurrentUser
-        let dir = home.appendingPathComponent(".vortex", isDirectory: true)
+        let dir = home.appendingPathComponent(".openflix", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         storeURL = dir.appendingPathComponent("store.json")
         lockFileURL = dir.appendingPathComponent("store.lock")

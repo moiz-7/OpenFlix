@@ -45,7 +45,7 @@ final class RunwayClient: VideoProvider {
         let (data, _) = try await session.jsonData(for: urlReq)
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         guard let taskId = json?["id"] as? String else {
-            throw VortexError.invalidResponse("Missing id in Runway response")
+            throw OpenFlixError.invalidResponse("Missing id in Runway response")
         }
         return GenerationSubmission(
             remoteTaskId: taskId,

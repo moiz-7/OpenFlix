@@ -56,7 +56,7 @@ enum Output {
     }
 
     /// Write an error to stderr as JSON and exit.
-    static func fail(_ error: VortexError, exitCode: Int32 = 1) -> Never {
+    static func fail(_ error: OpenFlixError, exitCode: Int32 = 1) -> Never {
         writeError(error.errorDescription ?? error.code, code: error.code)
         exit(exitCode)
     }
@@ -68,7 +68,7 @@ enum Output {
     }
 
     /// Write a structured error to stderr as JSON and exit (for MCP/agent consumers).
-    static func failStructured(_ error: VortexError, exitCode: Int32 = 1) -> Never {
+    static func failStructured(_ error: OpenFlixError, exitCode: Int32 = 1) -> Never {
         let structured = StructuredError.from(error)
         let dict: [String: Any] = ["error": structured.jsonRepresentation]
         let opts: JSONSerialization.WritingOptions = pretty ? [.prettyPrinted, .sortedKeys] : [.sortedKeys]
@@ -80,7 +80,7 @@ enum Output {
     }
 
     /// Write a structured error dict to stderr (non-exiting, for MCP responses).
-    static func writeStructuredError(_ error: VortexError) -> [String: Any] {
+    static func writeStructuredError(_ error: OpenFlixError) -> [String: Any] {
         return StructuredError.from(error).jsonRepresentation
     }
 

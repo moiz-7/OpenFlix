@@ -6,14 +6,14 @@ struct MCP: AsyncParsableCommand {
         commandName: "mcp",
         abstract: "Run as MCP (Model Context Protocol) server over stdio",
         discussion: """
-        Starts Vortex as an MCP server that communicates via stdin/stdout using JSON-RPC 2.0.
-        This allows AI agents (Claude Code, etc.) to use Vortex as a native tool server.
+        Starts OpenFlix as an MCP server that communicates via stdin/stdout using JSON-RPC 2.0.
+        This allows AI agents (Claude Code, etc.) to use OpenFlix as a native tool server.
 
         CONFIGURATION (claude_desktop_config.json or .claude.json):
           {
             "mcpServers": {
-              "vortex": {
-                "command": "vortex",
+              "openflix": {
+                "command": "openflix",
                 "args": ["mcp"]
               }
             }
@@ -26,7 +26,7 @@ struct MCP: AsyncParsableCommand {
           project_run, health_check
 
         EXPOSED RESOURCES (3):
-          vortex://providers, vortex://metrics, vortex://budget
+          openflix://providers, openflix://metrics, openflix://budget
         """
     )
 

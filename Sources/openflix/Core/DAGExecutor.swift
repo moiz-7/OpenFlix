@@ -100,7 +100,7 @@ actor DAGExecutor {
 
     func execute() async throws -> Project {
         guard var project = store.get(projectId) else {
-            throw VortexError.generationNotFound(projectId)
+            throw OpenFlixError.generationNotFound(projectId)
         }
 
         // 1. Validate DAG
@@ -150,7 +150,7 @@ actor DAGExecutor {
 
         // 4. Compute final status
         guard var finalProject = store.get(projectId) else {
-            throw VortexError.generationNotFound(projectId)
+            throw OpenFlixError.generationNotFound(projectId)
         }
         let allShots = finalProject.allShots
         let succeeded = allShots.filter { $0.status == .succeeded }.count
@@ -389,7 +389,7 @@ actor DAGExecutor {
                 }
             }
         } catch {
-            let msg = (error as? VortexError)?.errorDescription ?? error.localizedDescription
+            let msg = (error as? OpenFlixError)?.errorDescription ?? error.localizedDescription
             // Record failure metrics
             ProviderMetricsStore.shared.recordGeneration(
                 provider: providerID, model: modelID,

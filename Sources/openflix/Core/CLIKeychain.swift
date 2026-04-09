@@ -4,20 +4,37 @@ import Security
 /// Keychain access. Uses the same service prefix as the Mac app so keys
 /// set in OpenFlix GUI are automatically available to the CLI (and vice versa).
 enum CLIKeychain {
-    // Must match VortexKeychain.servicePrefix in the Mac app
-    private static let servicePrefix = "com.openflix.vortex"
+    private static let servicePrefix = "com.openflix.cli"
+    // Old prefixes for migration chain
     private static let oldServicePrefix = "com.meridian.vortex"
-    private static let migrationFlag = "com.openflix.cli.keychain.migrated"
+    private static let midServicePrefix = "com.openflix.vortex"
+    // Migration flags
+    private static let migrationFlagV1 = "com.openflix.cli.keychain.migrated"
+    private static let migrationFlagV2 = "com.openflix.cli.keychain.v2.migrated"
     private static let knownProviders = ["fal", "replicate", "runway", "luma", "kling", "minimax"]
 
-    /// One-time migration of keychain entries from com.meridian.vortex.* to com.openflix.vortex.*
-    static func migrateFromMeridianIfNeeded() {
-        guard !UserDefaults.standard.bool(forKey: migrationFlag) else { return }
-        defer { UserDefaults.standard.set(true, forKey: migrationFlag) }
+    /// One-time migration chain:
+    /// 1. com.meridian.vortex.* -> com.openflix.cli.*  (v1 legacy)
+    /// 2. com.openflix.vortex.* -> com.openflix.cli.*   (v2 rename)
+    static func migrateKeychainIfNeeded() {
+        // V1: migrate from com.meridian.vortex -> com.openflix.cli
+        if !UserDefaults.standard.bool(forKey: migrationFlagV1) {
+            defer { UserDefaults.standard.set(true, forKey: migrationFlagV1) }
+            migrateKeys(from: oldServicePrefix, to: servicePrefix)
+        }
 
+        // V2: migrate from com.openflix.vortex -> com.openflix.cli
+        if !UserDefaults.standard.bool(forKey: migrationFlagV2) {
+            defer { UserDefaults.standard.set(true, forKey: migrationFlagV2) }
+            migrateKeys(from: midServicePrefix, to: servicePrefix)
+        }
+    }
+
+    /// Migrate keychain entries from one service prefix to another.
+    private static func migrateKeys(from oldPrefix: String, to newPrefix: String) {
         for provider in knownProviders {
-            let oldService = "\(oldServicePrefix).\(provider)"
-            let newService = "\(servicePrefix).\(provider)"
+            let oldService = "\(oldPrefix).\(provider)"
+            let newService = "\(newPrefix).\(provider)"
 
             // Read from old entry
             var result: AnyObject?
@@ -95,20 +112,30 @@ enum CLIKeychain {
 
     /// Resolve an API key for a provider, checking in priority order:
     /// 1. Explicit flag value
-    /// 2. Environment variable (VORTEX_{PROVIDER}_KEY or VORTEX_API_KEY)
-    /// 3. macOS Keychain (shared with OpenFlix GUI)
+    /// 2. OPENFLIX_{PROVIDER}_KEY env var
+    /// 3. VORTEX_{PROVIDER}_KEY env var (legacy fallback)
+    /// 4. OPENFLIX_API_KEY env var (generic)
+    /// 5. VORTEX_API_KEY env var (legacy generic fallback)
+    /// 6. macOS Keychain (shared with OpenFlix GUI)
     static func resolveKey(provider: String, flagValue: String?) throws -> String {
-        migrateFromMeridianIfNeeded()
+        migrateKeychainIfNeeded()
         if let v = flagValue, !v.isEmpty { return v }
 
-        let envName = "VORTEX_\(provider.uppercased().replacingOccurrences(of: "-", with: "_"))_KEY"
-        if let v = ProcessInfo.processInfo.environment[envName], !v.isEmpty { return v }
+        let providerSuffix = provider.uppercased().replacingOccurrences(of: "-", with: "_")
 
-        // Generic fallback
+        // Provider-specific env vars (new name first, then legacy)
+        let openflixEnv = "OPENFLIX_\(providerSuffix)_KEY"
+        if let v = ProcessInfo.processInfo.environment[openflixEnv], !v.isEmpty { return v }
+
+        let vortexEnv = "VORTEX_\(providerSuffix)_KEY"
+        if let v = ProcessInfo.processInfo.environment[vortexEnv], !v.isEmpty { return v }
+
+        // Generic fallback env vars (new name first, then legacy)
+        if let v = ProcessInfo.processInfo.environment["OPENFLIX_API_KEY"], !v.isEmpty { return v }
         if let v = ProcessInfo.processInfo.environment["VORTEX_API_KEY"], !v.isEmpty { return v }
 
         if let v = getKey(provider: provider) { return v }
 
-        throw VortexError.noApiKey(provider)
+        throw OpenFlixError.noApiKey(provider)
     }
 }

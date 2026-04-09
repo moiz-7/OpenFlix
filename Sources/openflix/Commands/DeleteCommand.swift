@@ -6,11 +6,11 @@ struct Delete: AsyncParsableCommand {
         commandName: "delete",
         abstract: "Delete a generation from local history",
         discussion: """
-        Removes a generation record from ~/.vortex/store.json.
+        Removes a generation record from ~/.openflix/store.json.
         This does not cancel remote jobs or delete downloaded files.
 
         EXAMPLES
-          vortex delete <generation-id>
+          openflix delete <generation-id>
         """
     )
 

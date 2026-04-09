@@ -9,7 +9,7 @@ struct Cancel: AsyncParsableCommand {
         Sends a best-effort cancel request to the remote provider.
 
         EXAMPLES
-          vortex cancel <generation-id>
+          openflix cancel <generation-id>
         """
     )
 

@@ -10,9 +10,9 @@ struct ProjectExport: AsyncParsableCommand {
         video paths. Use --manifest to generate an ffmpeg concat demuxer file.
 
         EXAMPLES
-          vortex project export <project-id>
-          vortex project export <project-id> --manifest --output ./output
-          vortex project export <project-id> --pretty
+          openflix project export <project-id>
+          openflix project export <project-id> --manifest --output ./output
+          openflix project export <project-id> --pretty
         """
     )
 
@@ -75,7 +75,7 @@ struct ProjectExport: AsyncParsableCommand {
                 outputDir = URL(fileURLWithPath: dir)
             } else {
                 let home = FileManager.default.homeDirectoryForCurrentUser
-                outputDir = home.appendingPathComponent(".vortex/projects/\(projectId)/exports")
+                outputDir = home.appendingPathComponent(".openflix/projects/\(projectId)/exports")
             }
             try? FileManager.default.createDirectory(at: outputDir, withIntermediateDirectories: true)
 

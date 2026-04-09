@@ -10,8 +10,8 @@ struct ProjectDelete: AsyncParsableCommand {
         Optionally also removes linked generations from the generation store.
 
         EXAMPLES
-          vortex project delete <project-id>
-          vortex project delete <project-id> --delete-generations
+          openflix project delete <project-id>
+          openflix project delete <project-id> --delete-generations
         """
     )
 

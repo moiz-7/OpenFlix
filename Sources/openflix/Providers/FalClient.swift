@@ -43,7 +43,7 @@ final class FalClient: VideoProvider {
         for (k, v) in request.extraParams { body[k] = v }
 
         guard let url = URL(string: "https://queue.fal.run/\(request.model)") else {
-            throw VortexError.invalidResponse("Invalid fal.ai URL for model: \(request.model)")
+            throw OpenFlixError.invalidResponse("Invalid fal.ai URL for model: \(request.model)")
         }
         var urlReq = URLRequest(url: url)
         urlReq.httpMethod = "POST"
@@ -55,7 +55,7 @@ final class FalClient: VideoProvider {
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         guard let taskId = json?["request_id"] as? String,
               let statusURLStr = json?["status_url"] as? String else {
-            throw VortexError.invalidResponse("Missing request_id/status_url in fal.ai response")
+            throw OpenFlixError.invalidResponse("Missing request_id/status_url in fal.ai response")
         }
         return GenerationSubmission(
             remoteTaskId: taskId,

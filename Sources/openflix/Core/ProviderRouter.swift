@@ -34,7 +34,7 @@ struct ProviderRouter {
         }
 
         guard !candidates.isEmpty else {
-            throw VortexError.invalidResponse("No provider/model matches shot requirements (available: \(availableProviders.joined(separator: ", ")))")
+            throw OpenFlixError.invalidResponse("No provider/model matches shot requirements (available: \(availableProviders.joined(separator: ", ")))")
         }
 
         switch strategy {
@@ -91,7 +91,7 @@ struct ProviderRouter {
 
         case .manual:
             guard let p = shot.provider, let m = shot.model else {
-                throw VortexError.invalidResponse("Manual routing requires provider and model on each shot")
+                throw OpenFlixError.invalidResponse("Manual routing requires provider and model on each shot")
             }
             let matched = candidates.first { $0.providerId == p && $0.modelId == m }
             let cost = matched.flatMap { estimateCost(model: $0, duration: shot.duration) }

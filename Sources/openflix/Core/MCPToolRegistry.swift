@@ -1,6 +1,6 @@
 import Foundation
 
-/// Registry of all MCP tools and resources exposed by Vortex.
+/// Registry of all MCP tools and resources exposed by OpenFlix.
 enum MCPToolRegistry {
 
     // MARK: - Tools
@@ -165,19 +165,19 @@ enum MCPToolRegistry {
 
     static let allResources: [MCPResourceDefinition] = [
         MCPResourceDefinition(
-            uri: "vortex://providers",
+            uri: "openflix://providers",
             name: "Available Providers",
             description: "List of configured video generation providers with their models and capabilities",
             mimeType: "application/json"
         ),
         MCPResourceDefinition(
-            uri: "vortex://metrics",
+            uri: "openflix://metrics",
             name: "Provider Metrics",
             description: "Current provider performance metrics (quality, latency, cost, success rate)",
             mimeType: "application/json"
         ),
         MCPResourceDefinition(
-            uri: "vortex://budget",
+            uri: "openflix://budget",
             name: "Budget Status",
             description: "Current budget status including daily spend and limits",
             mimeType: "application/json"

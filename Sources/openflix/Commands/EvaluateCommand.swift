@@ -10,9 +10,9 @@ struct Evaluate: AsyncParsableCommand {
         Uses heuristic (file + ffprobe) or LLM vision (Claude API) evaluator.
 
         EXAMPLES
-          vortex evaluate <generation-id>
-          vortex evaluate <generation-id> --evaluator llm-vision --claude-api-key KEY
-          vortex evaluate <generation-id> --threshold 80
+          openflix evaluate <generation-id>
+          openflix evaluate <generation-id> --evaluator llm-vision --claude-api-key KEY
+          openflix evaluate <generation-id> --threshold 80
         """
     )
 
@@ -73,7 +73,7 @@ struct Evaluate: AsyncParsableCommand {
                 generation: gen, videoPath: localPath, shot: nil, config: config
             )
             Output.emitDict(result.jsonRepresentation)
-        } catch let error as VortexError {
+        } catch let error as OpenFlixError {
             Output.fail(error)
         } catch {
             Output.failMessage(error.localizedDescription, code: "evaluation_failed")

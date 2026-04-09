@@ -2,7 +2,7 @@ import Foundation
 import Darwin
 
 /// File-locked persistence for projects.
-/// Stored at ~/.vortex/projects/<project-id>/project.json
+/// Stored at ~/.openflix/projects/<project-id>/project.json
 final class ProjectStore {
     static let shared = ProjectStore()
 
@@ -13,7 +13,7 @@ final class ProjectStore {
 
     private init() {
         let home = FileManager.default.homeDirectoryForCurrentUser
-        baseDir = home.appendingPathComponent(".vortex/projects", isDirectory: true)
+        baseDir = home.appendingPathComponent(".openflix/projects", isDirectory: true)
         try? FileManager.default.createDirectory(at: baseDir, withIntermediateDirectories: true)
         encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601

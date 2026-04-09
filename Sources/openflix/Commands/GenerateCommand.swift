@@ -9,16 +9,16 @@ struct Generate: AsyncParsableCommand {
 
         EXAMPLES
           # Quick generate and wait:
-          vortex generate "a cat on the moon" --provider fal --model fal-ai/minimax/hailuo-02 --wait
+          openflix generate "a cat on the moon" --provider fal --model fal-ai/minimax/hailuo-02 --wait
 
           # Stream progress events (newline-delimited JSON):
-          vortex generate "..." --provider fal --model fal-ai/veo3 --stream
+          openflix generate "..." --provider fal --model fal-ai/veo3 --stream
 
           # Use environment variable for API key:
-          VORTEX_FAL_KEY=your-key vortex generate "..." --provider fal --model fal-ai/veo3 --wait
+          OPENFLIX_FAL_KEY=your-key openflix generate "..." --provider fal --model fal-ai/veo3 --wait
 
           # Specify output file:
-          vortex generate "..." --provider replicate --model minimax/video-01-live \\
+          openflix generate "..." --provider replicate --model minimax/video-01-live \\
               --wait --output ~/videos/result.mp4
         """
     )
@@ -31,7 +31,7 @@ struct Generate: AsyncParsableCommand {
     @Option(name: .long, help: "Provider ID (replicate, fal, runway, luma, kling, minimax)")
     var provider: String
 
-    @Option(name: .long, help: "Model ID (use 'vortex models --provider <id>' to list)")
+    @Option(name: .long, help: "Model ID (use 'openflix models --provider <id>' to list)")
     var model: String
 
     // MARK: - Generation params
@@ -107,7 +107,7 @@ struct Generate: AsyncParsableCommand {
         }
         let modelInfo = prov.models.first { $0.modelId == model }
         if modelInfo == nil {
-            Output.failMessage("Model '\(model)' not found for provider '\(provider)'. Run: vortex models --provider \(provider)", code: "model_not_found")
+            Output.failMessage("Model '\(model)' not found for provider '\(provider)'. Run: openflix models --provider \(provider)", code: "model_not_found")
         }
 
         // Input validation
@@ -162,7 +162,7 @@ struct Generate: AsyncParsableCommand {
         // Dry run
         if dryRun {
             do { _ = try CLIKeychain.resolveKey(provider: provider, flagValue: apiKey) }
-            catch let e as VortexError { Output.fail(e) }
+            catch let e as OpenFlixError { Output.fail(e) }
             catch { Output.failMessage(error.localizedDescription) }
             let est = prov.estimateCost(durationSeconds: duration ?? 4, modelId: model)
             Output.emitDict([
@@ -220,7 +220,7 @@ struct Generate: AsyncParsableCommand {
                 )
                 Output.emitDict(gen.jsonRepresentation)
             }
-        } catch let error as VortexError {
+        } catch let error as OpenFlixError {
             Output.fail(error)
         } catch {
             Output.failMessage(error.localizedDescription)

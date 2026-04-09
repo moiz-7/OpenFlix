@@ -48,7 +48,7 @@ final class KlingClient: VideoProvider {
               let taskData = json?["data"] as? [String: Any],
               let taskId = taskData["task_id"] as? String else {
             let msg = (json?["message"] as? String) ?? "Unknown Kling error"
-            throw VortexError.invalidResponse("Kling: \(msg)")
+            throw OpenFlixError.invalidResponse("Kling: \(msg)")
         }
         let pollPath = "videos/\(endpoint)/\(taskId)"
         return GenerationSubmission(

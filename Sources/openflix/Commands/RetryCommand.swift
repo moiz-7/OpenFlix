@@ -9,9 +9,9 @@ struct Retry: AsyncParsableCommand {
         is kept; a new generation is created with a reference to the original.
 
         EXAMPLES
-          vortex retry abc123
-          vortex retry abc123 --wait
-          vortex retry abc123 --stream --skip-download
+          openflix retry abc123
+          openflix retry abc123 --wait
+          openflix retry abc123 --stream --skip-download
         """
     )
 
@@ -94,7 +94,7 @@ struct Retry: AsyncParsableCommand {
             var result = gen.jsonRepresentation
             result["retried_from"] = original.id
             Output.emitDict(result)
-        } catch let error as VortexError {
+        } catch let error as OpenFlixError {
             Output.fail(error)
         } catch {
             Output.failMessage(error.localizedDescription)

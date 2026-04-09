@@ -11,13 +11,13 @@ struct LLMVisionEvaluator: VideoEvaluator {
     func evaluate(generation: CLIGeneration, videoPath: String, shot: Shot?, config: QualityConfig) async throws -> EvaluationResult {
         // 1. Resolve API key
         guard let apiKey = config.claudeApiKey ?? ProcessInfo.processInfo.environment["ANTHROPIC_API_KEY"] else {
-            throw VortexError.invalidResponse("No Claude API key. Set ANTHROPIC_API_KEY or pass --claude-api-key")
+            throw OpenFlixError.invalidResponse("No Claude API key. Set ANTHROPIC_API_KEY or pass --claude-api-key")
         }
 
         // 2. Extract frames
         let frames = try await extractFrames(videoPath: videoPath, count: config.maxFrames)
         guard !frames.isEmpty else {
-            throw VortexError.invalidResponse("Failed to extract frames from video")
+            throw OpenFlixError.invalidResponse("Failed to extract frames from video")
         }
 
         // 3. Build prompt
@@ -40,7 +40,7 @@ struct LLMVisionEvaluator: VideoEvaluator {
 
     private func extractFrames(videoPath: String, count: Int) async throws -> [Data] {
         let tempDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("vortex_eval_\(UUID().uuidString)")
+            .appendingPathComponent("openflix_eval_\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: tempDir) }
 
@@ -149,7 +149,7 @@ struct LLMVisionEvaluator: VideoEvaluator {
 
     private func callClaudeAPI(apiKey: String, model: String, frames: [Data], prompt: String) async throws -> [String: Any] {
         guard let url = URL(string: "https://api.anthropic.com/v1/messages") else {
-            throw VortexError.invalidResponse("Invalid Anthropic API URL")
+            throw OpenFlixError.invalidResponse("Invalid Anthropic API URL")
         }
 
         var content: [[String: Any]] = []
@@ -190,26 +190,26 @@ struct LLMVisionEvaluator: VideoEvaluator {
         let (data, response) = try await URLSession.shared.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {
-            throw VortexError.invalidResponse("Non-HTTP response from Claude API")
+            throw OpenFlixError.invalidResponse("Non-HTTP response from Claude API")
         }
 
         guard httpResponse.statusCode == 200 else {
             let body = String(data: data, encoding: .utf8)?.prefix(500) ?? ""
-            throw VortexError.httpError(httpResponse.statusCode, "Claude API: \(body)")
+            throw OpenFlixError.httpError(httpResponse.statusCode, "Claude API: \(body)")
         }
 
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let contentArray = json["content"] as? [[String: Any]],
               let textBlock = contentArray.first(where: { ($0["type"] as? String) == "text" }),
               let text = textBlock["text"] as? String else {
-            throw VortexError.invalidResponse("Unexpected Claude API response format")
+            throw OpenFlixError.invalidResponse("Unexpected Claude API response format")
         }
 
         // Extract JSON from response text (may be wrapped in markdown code block)
         let jsonText = extractJSON(from: text)
         guard let resultData = jsonText.data(using: .utf8),
               let result = try? JSONSerialization.jsonObject(with: resultData) as? [String: Any] else {
-            throw VortexError.invalidResponse("Could not parse Claude evaluation response as JSON")
+            throw OpenFlixError.invalidResponse("Could not parse Claude evaluation response as JSON")
         }
 
         return result

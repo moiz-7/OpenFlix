@@ -25,7 +25,7 @@ actor BudgetManager {
     private var cachedSpend: DailySpend?
 
     private init() {
-        let base = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".vortex")
+        let base = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".openflix")
         configURL = base.appendingPathComponent("budget_config.json")
         spendURL = base.appendingPathComponent("daily_spend.json")
     }

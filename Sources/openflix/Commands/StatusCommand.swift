@@ -9,13 +9,13 @@ struct Status: AsyncParsableCommand {
         Reads the generation from local store, then queries the provider API.
 
         EXAMPLES
-          vortex status abc123
-          vortex status abc123 --wait --stream
-          vortex status abc123 --wait --output ~/Downloads/result.mp4
+          openflix status abc123
+          openflix status abc123 --wait --stream
+          openflix status abc123 --wait --output ~/Downloads/result.mp4
         """
     )
 
-    @Argument(help: "Generation ID (from 'vortex generate' or 'vortex list')")
+    @Argument(help: "Generation ID (from 'openflix generate' or 'openflix list')")
     var id: String
 
     @Flag(name: .long, help: "Block until generation completes")
@@ -105,7 +105,7 @@ struct Status: AsyncParsableCommand {
         do {
             let completed = try await GenerationEngine.waitForCompletion(gen: &gen, apiKey: apiKey, options: opts)
             Output.emitDict(completed.jsonRepresentation)
-        } catch let error as VortexError {
+        } catch let error as OpenFlixError {
             Output.fail(error)
         } catch {
             Output.failMessage(error.localizedDescription)

@@ -10,17 +10,17 @@ enum VideoDownloader {
     }()
     private static let downloadDir: URL = {
         let home = FileManager.default.homeDirectoryForCurrentUser
-        let dir = home.appendingPathComponent(".vortex/downloads", isDirectory: true)
+        let dir = home.appendingPathComponent(".openflix/downloads", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }()
 
     /// Download a video from a URL. If outputURL is provided, saves there; otherwise saves
-    /// to ~/.vortex/downloads/<uuid>.<ext>. Returns the local file URL.
+    /// to ~/.openflix/downloads/<uuid>.<ext>. Returns the local file URL.
     static func download(from remoteURL: URL, to outputURL: URL? = nil, generationId: String) async throws -> URL {
         let (tmpURL, response) = try await session.download(from: remoteURL)
         guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-            throw VortexError.downloadFailed(remoteURL, "HTTP \((response as? HTTPURLResponse)?.statusCode ?? 0)")
+            throw OpenFlixError.downloadFailed(remoteURL, "HTTP \((response as? HTTPURLResponse)?.statusCode ?? 0)")
         }
 
         let ext = remoteURL.pathExtension.isEmpty ? "mp4" : remoteURL.pathExtension
