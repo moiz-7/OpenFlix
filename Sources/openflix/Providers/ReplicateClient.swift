@@ -29,7 +29,7 @@ final class ReplicateClient: VideoProvider {
         if let d = request.durationSeconds { input["num_frames"] = Int(d * 8) }
 
         guard let url = URL(string: "https://api.replicate.com/v1/predictions") else {
-            throw VortexError.invalidResponse("Invalid Replicate API URL")
+            throw OpenFlixError.invalidResponse("Invalid Replicate API URL")
         }
         var urlReq = URLRequest(url: url)
         urlReq.httpMethod = "POST"
@@ -45,7 +45,7 @@ final class ReplicateClient: VideoProvider {
         guard let taskId = json?["id"] as? String,
               let urls = json?["urls"] as? [String: Any],
               let getURL = urls["get"] as? String else {
-            throw VortexError.invalidResponse("Missing id/urls in Replicate response")
+            throw OpenFlixError.invalidResponse("Missing id/urls in Replicate response")
         }
         return GenerationSubmission(
             remoteTaskId: taskId,
@@ -60,7 +60,7 @@ final class ReplicateClient: VideoProvider {
             url = statusURL
         } else {
             guard let encoded = taskId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
-                throw VortexError.invalidResponse("Invalid task ID: \(taskId)")
+                throw OpenFlixError.invalidResponse("Invalid task ID: \(taskId)")
             }
             guard let fallback = URL(string: "https://api.replicate.com/v1/predictions/\(encoded)") else {
                 return .failed(message: "Replicate: invalid task ID for URL construction")

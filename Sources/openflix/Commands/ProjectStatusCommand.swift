@@ -10,8 +10,8 @@ struct ProjectStatus: AsyncParsableCommand {
         cost breakdown, and elapsed time.
 
         EXAMPLES
-          vortex project status <project-id>
-          vortex project status <project-id> --detail --pretty
+          openflix project status <project-id>
+          openflix project status <project-id> --detail --pretty
         """
     )
 

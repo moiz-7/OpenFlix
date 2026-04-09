@@ -9,10 +9,10 @@ struct Purge: AsyncParsableCommand {
         (--older-than or --status) is required to prevent accidental data loss.
 
         EXAMPLES
-          vortex purge --status failed
-          vortex purge --older-than 30
-          vortex purge --status failed --delete-files
-          vortex purge --older-than 7 --status cancelled --delete-files
+          openflix purge --status failed
+          openflix purge --older-than 30
+          openflix purge --status failed --delete-files
+          openflix purge --older-than 7 --status cancelled --delete-files
         """
     )
 

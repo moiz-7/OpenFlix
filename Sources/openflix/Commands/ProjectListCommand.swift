@@ -9,9 +9,9 @@ struct ProjectList: AsyncParsableCommand {
         Lists all projects with summary info (id, name, status, shot counts, cost).
 
         EXAMPLES
-          vortex project list
-          vortex project list --status running
-          vortex project list --pretty
+          openflix project list
+          openflix project list --status running
+          openflix project list --pretty
         """
     )
 

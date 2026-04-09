@@ -56,7 +56,7 @@ struct ScatterGatherExecutor {
                         )
                     } catch {
                         let elapsed = Int(Date().timeIntervalSince(start) * 1000)
-                        let msg = (error as? VortexError)?.errorDescription ?? error.localizedDescription
+                        let msg = (error as? OpenFlixError)?.errorDescription ?? error.localizedDescription
                         return ScatterResult(
                             generationId: "",
                             provider: target.provider,

@@ -10,8 +10,8 @@ struct ProjectRun: AsyncParsableCommand {
         Use --resume to restart stale dispatched/processing shots.
 
         EXAMPLES
-          vortex project run <project-id> --stream
-          vortex project run <project-id> --concurrency 6 --resume
+          openflix project run <project-id> --stream
+          openflix project run <project-id> --concurrency 6 --resume
         """
     )
 
@@ -108,7 +108,7 @@ struct ProjectRun: AsyncParsableCommand {
         do {
             let result = try await executor.execute()
             Output.emitDict(result.jsonRepresentation)
-        } catch let error as VortexError {
+        } catch let error as OpenFlixError {
             Output.fail(error)
         } catch let error as ProjectSpecError {
             Output.failMessage(error.errorDescription ?? error.localizedDescription, code: error.code)

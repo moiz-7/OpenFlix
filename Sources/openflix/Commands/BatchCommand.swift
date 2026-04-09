@@ -10,9 +10,9 @@ struct Batch: AsyncParsableCommand {
         them in parallel with configurable concurrency.
 
         EXAMPLES
-          vortex batch --file shots.json --wait --concurrency 4
-          cat shots.json | vortex batch --wait
-          vortex batch --file shots.json --stream --skip-download
+          openflix batch --file shots.json --wait --concurrency 4
+          cat shots.json | openflix batch --wait
+          openflix batch --file shots.json --stream --skip-download
 
         INPUT FORMAT
           [
@@ -188,7 +188,7 @@ struct Batch: AsyncParsableCommand {
             var result: [String: Any] = [
                 "status": "failed",
                 "batch_index": index,
-                "error_message": (error as? VortexError)?.errorDescription ?? error.localizedDescription,
+                "error_message": (error as? OpenFlixError)?.errorDescription ?? error.localizedDescription,
             ]
             if let tag = item.tag { result["tag"] = tag }
             return result

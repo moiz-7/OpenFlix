@@ -47,7 +47,7 @@ final class LumaClient: VideoProvider {
         let (data, _) = try await session.jsonData(for: urlReq)
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         guard let taskId = json?["id"] as? String else {
-            throw VortexError.invalidResponse("Missing id in Luma response")
+            throw OpenFlixError.invalidResponse("Missing id in Luma response")
         }
         return GenerationSubmission(
             remoteTaskId: taskId,

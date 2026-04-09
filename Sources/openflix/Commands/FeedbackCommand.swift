@@ -10,8 +10,8 @@ struct Feedback: AsyncParsableCommand {
         This feeds the provider metrics system for smarter routing.
 
         EXAMPLES
-          vortex feedback <generation-id> --score 85
-          vortex feedback <generation-id> --score 30 --reason "Artifacts and wrong subject"
+          openflix feedback <generation-id> --score 85
+          openflix feedback <generation-id> --score 30 --reason "Artifacts and wrong subject"
         """
     )
 

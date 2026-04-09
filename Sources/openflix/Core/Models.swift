@@ -100,7 +100,7 @@ struct CLIProviderModel: Codable {
 
 // MARK: - Provider error
 
-enum VortexError: Error, LocalizedError {
+enum OpenFlixError: Error, LocalizedError {
     case noApiKey(String)
     case httpError(Int, String)
     case invalidResponse(String)
@@ -116,7 +116,7 @@ enum VortexError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .noApiKey(let p):            return "No API key for '\(p)'. Use: vortex keys set \(p) <key>"
+        case .noApiKey(let p):            return "No API key for '\(p)'. Use: openflix keys set \(p) <key>"
         case .httpError(let c, let m):    return "HTTP \(c): \(m)"
         case .invalidResponse(let m):     return "Invalid response: \(m)"
         case .rateLimited(let p, let retryAfter):
@@ -127,7 +127,7 @@ enum VortexError: Error, LocalizedError {
         case .downloadFailed(let u, let m): return "Download failed from \(u): \(m)"
         case .generationNotFound(let id): return "Generation '\(id)' not found in store"
         case .generationFailed(let m):    return "Generation failed: \(m)"
-        case .notComplete(let id):        return "Generation '\(id)' is not yet complete — use: vortex status \(id) --wait"
+        case .notComplete(let id):        return "Generation '\(id)' is not yet complete — use: openflix status \(id) --wait"
         case .budgetExceeded(let reason): return "Budget exceeded: \(reason)"
         case .promptBlocked(let flags):   return "Prompt blocked: \(flags.joined(separator: ", "))"
         }
@@ -218,7 +218,7 @@ struct StructuredError: Codable {
     let retryable: Bool
     let retryAfterSeconds: Int?
 
-    static func from(_ error: VortexError) -> StructuredError {
+    static func from(_ error: OpenFlixError) -> StructuredError {
         switch error {
         case .noApiKey(let p):
             return StructuredError(code: .authMissing, message: error.errorDescription ?? "",

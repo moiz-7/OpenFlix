@@ -10,9 +10,9 @@ struct Metrics: AsyncParsableCommand {
         including quality scores, latency, cost, and success rates.
 
         EXAMPLES
-          vortex metrics
-          vortex metrics --provider fal
-          vortex metrics --sort latency --pretty
+          openflix metrics
+          openflix metrics --provider fal
+          openflix metrics --sort latency --pretty
         """
     )
 

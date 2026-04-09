@@ -37,7 +37,7 @@ final class ProviderRegistry {
     }
 
     func provider(for id: String) throws -> VideoProvider {
-        guard let p = _providers[id] else { throw VortexError.providerNotFound(id) }
+        guard let p = _providers[id] else { throw OpenFlixError.providerNotFound(id) }
         return p
     }
 
@@ -56,15 +56,15 @@ extension URLSession {
     func jsonData(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {
         let (data, response) = try await self.data(for: request)
         guard let http = response as? HTTPURLResponse else {
-            throw VortexError.invalidResponse("No HTTP response")
+            throw OpenFlixError.invalidResponse("No HTTP response")
         }
         if http.statusCode == 429 {
             let retryAfter = http.value(forHTTPHeaderField: "Retry-After").flatMap { Int($0) }
-            throw VortexError.rateLimited("Provider", retryAfter: retryAfter)
+            throw OpenFlixError.rateLimited("Provider", retryAfter: retryAfter)
         }
         guard (200...299).contains(http.statusCode) else {
             let body = String(data: data, encoding: .utf8) ?? ""
-            throw VortexError.httpError(http.statusCode, body.prefix(500).description)
+            throw OpenFlixError.httpError(http.statusCode, body.prefix(500).description)
         }
         return (data, http)
     }

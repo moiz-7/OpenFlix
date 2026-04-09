@@ -9,16 +9,16 @@ struct Download: AsyncParsableCommand {
         If the generation is not yet complete, use --wait to block until it is.
 
         EXAMPLES
-          vortex download abc123
-          vortex download abc123 --output ~/Videos/result.mp4
-          vortex download abc123 --wait
+          openflix download abc123
+          openflix download abc123 --output ~/Videos/result.mp4
+          openflix download abc123 --wait
         """
     )
 
     @Argument(help: "Generation ID")
     var id: String
 
-    @Option(name: [.short, .long], help: "Output file path (default: ~/.vortex/downloads/<id>.mp4)")
+    @Option(name: [.short, .long], help: "Output file path (default: ~/.openflix/downloads/<id>.mp4)")
     var output: String?
 
     @Flag(name: .long, help: "Block until generation completes before downloading")
@@ -55,7 +55,7 @@ struct Download: AsyncParsableCommand {
             )
             do {
                 gen = try await GenerationEngine.waitForCompletion(gen: &gen, apiKey: apiKey, options: opts)
-            } catch let error as VortexError {
+            } catch let error as OpenFlixError {
                 Output.fail(error)
             } catch {
                 Output.failMessage(error.localizedDescription)
@@ -93,7 +93,7 @@ struct Download: AsyncParsableCommand {
             let localURL = try await VideoDownloader.download(from: remoteURL, to: outputURL, generationId: gen.id)
             GenerationStore.shared.update(id: gen.id) { $0.localPath = localURL.path }
             Output.emitDict(["id": gen.id, "local_path": localURL.path, "cached": false])
-        } catch let error as VortexError {
+        } catch let error as OpenFlixError {
             Output.fail(error)
         } catch {
             Output.failMessage("Download failed: \(error.localizedDescription)", code: "download_failed")

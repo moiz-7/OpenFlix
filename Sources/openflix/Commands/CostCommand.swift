@@ -9,9 +9,9 @@ struct Cost: AsyncParsableCommand {
         Summarizes actual and estimated costs from local generation history.
 
         EXAMPLES
-          vortex cost
-          vortex cost --provider fal
-          vortex cost --since 2024-01-01
+          openflix cost
+          openflix cost --provider fal
+          openflix cost --since 2024-01-01
         """
     )
 

@@ -74,7 +74,7 @@ actor MCPServer {
                 "resources": .dictionary([:]),
             ]),
             "serverInfo": .dictionary([
-                "name": .string("vortex"),
+                "name": .string("openflix"),
                 "version": .string("1.0.0"),
             ]),
         ]))
@@ -113,7 +113,7 @@ actor MCPServer {
                     ])
                 ])
             ]))
-        } catch let error as VortexError {
+        } catch let error as OpenFlixError {
             let structured = StructuredError.from(error)
             return MCPResponse.success(id: request.id, result: .dictionary([
                 "content": .array([
@@ -196,7 +196,7 @@ actor MCPServer {
         case "health_check":
             return try await toolHealthCheck()
         default:
-            throw VortexError.invalidResponse("Unknown tool: \(name)")
+            throw OpenFlixError.invalidResponse("Unknown tool: \(name)")
         }
     }
 
@@ -251,7 +251,7 @@ actor MCPServer {
     private func toolGeneratePoll(_ args: [String: AnyCodableValue]) async throws -> [String: Any] {
         let genId = try requireString(args, "generation_id")
         guard var gen = GenerationStore.shared.get(genId) else {
-            throw VortexError.generationNotFound(genId)
+            throw OpenFlixError.generationNotFound(genId)
         }
 
         let shouldWait = optionalBool(args, "wait") ?? false
@@ -290,7 +290,7 @@ actor MCPServer {
     private func toolGetGeneration(_ args: [String: AnyCodableValue]) throws -> [String: Any] {
         let genId = try requireString(args, "generation_id")
         guard let gen = GenerationStore.shared.get(genId) else {
-            throw VortexError.generationNotFound(genId)
+            throw OpenFlixError.generationNotFound(genId)
         }
         return gen.jsonRepresentation
     }
@@ -298,10 +298,10 @@ actor MCPServer {
     private func toolCancelGeneration(_ args: [String: AnyCodableValue]) throws -> [String: Any] {
         let genId = try requireString(args, "generation_id")
         guard let gen = GenerationStore.shared.get(genId) else {
-            throw VortexError.generationNotFound(genId)
+            throw OpenFlixError.generationNotFound(genId)
         }
         guard !gen.status.isTerminal else {
-            throw VortexError.invalidResponse("Generation is already in terminal state: \(gen.status.rawValue)")
+            throw OpenFlixError.invalidResponse("Generation is already in terminal state: \(gen.status.rawValue)")
         }
         GenerationStore.shared.update(id: genId) {
             $0.status = .cancelled
@@ -313,10 +313,10 @@ actor MCPServer {
     private func toolRetryGeneration(_ args: [String: AnyCodableValue]) async throws -> [String: Any] {
         let genId = try requireString(args, "generation_id")
         guard let gen = GenerationStore.shared.get(genId) else {
-            throw VortexError.generationNotFound(genId)
+            throw OpenFlixError.generationNotFound(genId)
         }
         guard gen.status == .failed else {
-            throw VortexError.invalidResponse("Can only retry failed generations (current: \(gen.status.rawValue))")
+            throw OpenFlixError.invalidResponse("Can only retry failed generations (current: \(gen.status.rawValue))")
         }
 
         let newGen = try await GenerationEngine.submit(
@@ -343,13 +343,13 @@ actor MCPServer {
     private func toolEvaluateQuality(_ args: [String: AnyCodableValue]) async throws -> [String: Any] {
         let genId = try requireString(args, "generation_id")
         guard let gen = GenerationStore.shared.get(genId) else {
-            throw VortexError.generationNotFound(genId)
+            throw OpenFlixError.generationNotFound(genId)
         }
         guard gen.status == .succeeded else {
-            throw VortexError.invalidResponse("Can only evaluate succeeded generations")
+            throw OpenFlixError.invalidResponse("Can only evaluate succeeded generations")
         }
         guard let localPath = gen.localPath else {
-            throw VortexError.invalidResponse("No local video file for evaluation")
+            throw OpenFlixError.invalidResponse("No local video file for evaluation")
         }
 
         let evaluatorStr = optionalString(args, "evaluator") ?? "heuristic"
@@ -385,11 +385,11 @@ actor MCPServer {
         _ = optionalString(args, "reason") // accepted but not stored by CLI metrics
 
         guard score >= 0 && score <= 100 else {
-            throw VortexError.invalidResponse("Score must be between 0 and 100")
+            throw OpenFlixError.invalidResponse("Score must be between 0 and 100")
         }
 
         guard let gen = GenerationStore.shared.get(genId) else {
-            throw VortexError.generationNotFound(genId)
+            throw OpenFlixError.generationNotFound(genId)
         }
 
         ProviderMetricsStore.shared.recordFeedback(
@@ -438,12 +438,12 @@ actor MCPServer {
     private func toolProjectRun(_ args: [String: AnyCodableValue]) async throws -> [String: Any] {
         let projectId = try requireString(args, "project_id")
         guard let project = ProjectStore.shared.get(projectId) else {
-            throw VortexError.generationNotFound("Project '\(projectId)' not found")
+            throw OpenFlixError.generationNotFound("Project '\(projectId)' not found")
         }
         return [
             "project_id": projectId,
             "name": project.name,
-            "status": "use 'vortex project run \(projectId)' for full execution",
+            "status": "use 'openflix project run \(projectId)' for full execution",
         ]
     }
 
@@ -466,17 +466,17 @@ actor MCPServer {
 
     private func readResource(uri: String) async throws -> String {
         switch uri {
-        case "vortex://providers":
+        case "openflix://providers":
             let models = ProviderRegistry.shared.allModels
             return jsonString(["providers": models.map { $0.jsonRepresentation }])
-        case "vortex://metrics":
+        case "openflix://metrics":
             let metrics = ProviderMetricsStore.shared.allMetrics()
             return jsonString(["metrics": metrics.map { $0.jsonRepresentation }])
-        case "vortex://budget":
+        case "openflix://budget":
             let status = await BudgetManager.shared.statusSummary()
             return jsonString(status)
         default:
-            throw VortexError.invalidResponse("Unknown resource: \(uri)")
+            throw OpenFlixError.invalidResponse("Unknown resource: \(uri)")
         }
     }
 
@@ -499,7 +499,7 @@ actor MCPServer {
 
     private func requireString(_ args: [String: AnyCodableValue], _ key: String) throws -> String {
         guard case .string(let v) = args[key] else {
-            throw VortexError.invalidResponse("Missing required parameter: \(key)")
+            throw OpenFlixError.invalidResponse("Missing required parameter: \(key)")
         }
         return v
     }
@@ -508,7 +508,7 @@ actor MCPServer {
         switch args[key] {
         case .double(let v): return v
         case .int(let v): return Double(v)
-        default: throw VortexError.invalidResponse("Missing required parameter: \(key)")
+        default: throw OpenFlixError.invalidResponse("Missing required parameter: \(key)")
         }
     }
 

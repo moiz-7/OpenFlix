@@ -14,12 +14,12 @@ actor DaemonServer {
 
     static var defaultSocketPath: String {
         FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".vortex/daemon.sock").path
+            .appendingPathComponent(".openflix/daemon.sock").path
     }
 
     static var defaultPidPath: String {
         FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".vortex/daemon.pid").path
+            .appendingPathComponent(".openflix/daemon.pid").path
     }
 
     init(socketPath: String? = nil, pidPath: String? = nil) {
@@ -33,7 +33,7 @@ actor DaemonServer {
     func start() async throws {
         // Check if already running
         if let existingPid = readPid(), isProcessRunning(existingPid) {
-            throw VortexError.invalidResponse("Daemon already running (PID \(existingPid))")
+            throw OpenFlixError.invalidResponse("Daemon already running (PID \(existingPid))")
         }
 
         // Remove stale socket

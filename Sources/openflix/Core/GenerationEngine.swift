@@ -33,7 +33,7 @@ final class GenerationEngine {
         // Prompt safety pre-flight
         let safety = PromptSafetyChecker.check(prompt)
         if safety.level == .blocked {
-            throw VortexError.promptBlocked(safety.flags)
+            throw OpenFlixError.promptBlocked(safety.flags)
         }
 
         let request = GenerationRequest(
@@ -60,7 +60,7 @@ final class GenerationEngine {
         if estCost > 0 {
             let budgetCheck = await BudgetManager.shared.preFlightCheck(estimatedCost: estCost)
             if case .denied(let reason) = budgetCheck {
-                throw VortexError.budgetExceeded(reason)
+                throw OpenFlixError.budgetExceeded(reason)
             }
         }
 
@@ -146,7 +146,7 @@ final class GenerationEngine {
                     ])
                 }
                 return try await waitForCompletion(gen: &gen, apiKey: apiKey, options: options)
-            } catch let error as VortexError where error.code == "generation_failed" || error.code == "rate_limited" {
+            } catch let error as OpenFlixError where error.code == "generation_failed" || error.code == "rate_limited" {
                 attempt += 1
                 guard attempt <= options.maxRetries else { throw error }
                 if options.stream {
@@ -171,7 +171,7 @@ final class GenerationEngine {
 
     static func waitForCompletion(gen: inout CLIGeneration, apiKey: String?, options: Options) async throws -> CLIGeneration {
         guard let taskId = gen.remoteTaskId else {
-            throw VortexError.invalidResponse("Generation has no remote task ID")
+            throw OpenFlixError.invalidResponse("Generation has no remote task ID")
         }
         let provider = try ProviderRegistry.shared.provider(for: gen.provider)
         let key = try CLIKeychain.resolveKey(provider: gen.provider, flagValue: apiKey)
@@ -189,7 +189,7 @@ final class GenerationEngine {
                 pollResult = try await provider.poll(taskId: taskId, statusURL: statusURL, apiKey: key)
             } catch {
                 let isTransient = (error as? URLError) != nil
-                    || (error as? VortexError).map { e in e.code == "rate_limited" || e.code == "http_error" } ?? false
+                    || (error as? OpenFlixError).map { e in e.code == "rate_limited" || e.code == "http_error" } ?? false
                 if isTransient {
                     var retried: PollStatus?
                     for attempt in 1...3 {
@@ -248,8 +248,8 @@ final class GenerationEngine {
                                 "actual_cost_usd": gen.actualCostUSD as Any, "timestamp": now()])
                         }
                     } catch {
-                        let msg = (error as? VortexError)?.errorDescription ?? error.localizedDescription
-                        let hint = "Use: vortex download \(gen.id)"
+                        let msg = (error as? OpenFlixError)?.errorDescription ?? error.localizedDescription
+                        let hint = "Use: openflix download \(gen.id)"
                         gen.errorMessage = "Download failed: \(msg). \(hint)"
                         GenerationStore.shared.update(id: gen.id) { $0.errorMessage = gen.errorMessage }
                         if options.stream {
@@ -279,13 +279,13 @@ final class GenerationEngine {
                 if options.stream {
                     Output.emitEvent(["event": "failed", "id": gen.id, "error": message, "timestamp": now()])
                 }
-                throw VortexError.generationFailed(message)
+                throw OpenFlixError.generationFailed(message)
             }
         }
 
         let msg = "Timed out after \(Int(options.timeout))s (last status: \(lastKnownStatus))"
         GenerationStore.shared.update(id: gen.id) { $0.status = .failed; $0.errorMessage = msg }
-        throw VortexError.timeout(gen.id)
+        throw OpenFlixError.timeout(gen.id)
     }
 
     private static func now() -> String { ISO8601DateFormatter().string(from: Date()) }

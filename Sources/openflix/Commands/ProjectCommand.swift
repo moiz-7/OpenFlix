@@ -10,10 +10,10 @@ struct ProjectGroup: AsyncParsableCommand {
         management, parallel execution, and intelligent provider routing.
 
         WORKFLOW
-          vortex project create --file spec.json
-          vortex project run <project-id> --stream
-          vortex project status <project-id> --detail
-          vortex project export <project-id>
+          openflix project create --file spec.json
+          openflix project run <project-id> --stream
+          openflix project status <project-id> --detail
+          openflix project export <project-id>
         """,
         subcommands: [
             ProjectCreate.self,

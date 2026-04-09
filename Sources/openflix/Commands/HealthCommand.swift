@@ -9,9 +9,12 @@ struct Health: AsyncParsableCommand {
         API key configuration. Useful for agents to verify the environment
         before submitting generation requests.
 
+        Checks for both OPENFLIX_*_KEY and legacy VORTEX_*_KEY environment
+        variables.
+
         EXAMPLES
-          vortex health
-          vortex health --pretty
+          openflix health
+          openflix health --pretty
         """
     )
 
@@ -23,9 +26,9 @@ struct Health: AsyncParsableCommand {
 
         let fm = FileManager.default
         let home = fm.homeDirectoryForCurrentUser
-        let storeDir = home.appendingPathComponent(".vortex", isDirectory: true)
+        let storeDir = home.appendingPathComponent(".openflix", isDirectory: true)
         let storeFile = storeDir.appendingPathComponent("store.json")
-        let downloadsDir = home.appendingPathComponent(".vortex/downloads", isDirectory: true)
+        let downloadsDir = home.appendingPathComponent(".openflix/downloads", isDirectory: true)
 
         // Check store writable
         let storeWritable: Bool
@@ -47,9 +50,11 @@ struct Health: AsyncParsableCommand {
         var allConfigured = true
         for prov in registry.all {
             let hasKeychain = CLIKeychain.hasKey(provider: prov.providerId)
-            let envName = "VORTEX_\(prov.providerId.uppercased().replacingOccurrences(of: "-", with: "_"))_KEY"
-            let hasEnv = ProcessInfo.processInfo.environment[envName] != nil
-            let hasGenericEnv = ProcessInfo.processInfo.environment["VORTEX_API_KEY"] != nil
+            let providerSuffix = prov.providerId.uppercased().replacingOccurrences(of: "-", with: "_")
+            let hasEnv = ProcessInfo.processInfo.environment["OPENFLIX_\(providerSuffix)_KEY"] != nil
+                || ProcessInfo.processInfo.environment["VORTEX_\(providerSuffix)_KEY"] != nil
+            let hasGenericEnv = ProcessInfo.processInfo.environment["OPENFLIX_API_KEY"] != nil
+                || ProcessInfo.processInfo.environment["VORTEX_API_KEY"] != nil
             let configured = hasKeychain || hasEnv || hasGenericEnv
             if !configured { allConfigured = false }
             providerResults.append([

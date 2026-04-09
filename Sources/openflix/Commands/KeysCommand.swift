@@ -11,10 +11,10 @@ struct Keys: AsyncParsableCommand {
         so keys configured here are also available to the GUI app and vice versa.
 
         EXAMPLES
-          vortex keys set fal your-api-key
-          vortex keys get fal
-          vortex keys list
-          vortex keys delete fal
+          openflix keys set fal your-api-key
+          openflix keys get fal
+          openflix keys list
+          openflix keys delete fal
         """,
         subcommands: [KeysSet.self, KeysGet.self, KeysDelete.self, KeysList.self]
     )
@@ -33,7 +33,7 @@ struct KeysSet: AsyncParsableCommand {
     var key: String
 
     mutating func run() async throws {
-        let service = "com.openflix.vortex.\(provider)"
+        let service = "com.openflix.cli.\(provider)"
         let data = key.data(using: .utf8)!
 
         // Delete existing first
@@ -69,7 +69,7 @@ struct KeysGet: AsyncParsableCommand {
     var reveal: Bool = false
 
     mutating func run() async throws {
-        let service = "com.openflix.vortex.\(provider)"
+        let service = "com.openflix.cli.\(provider)"
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -95,7 +95,7 @@ struct KeysDelete: AsyncParsableCommand {
     var provider: String
 
     mutating func run() async throws {
-        let service = "com.openflix.vortex.\(provider)"
+        let service = "com.openflix.cli.\(provider)"
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -122,7 +122,7 @@ struct KeysList: AsyncParsableCommand {
         let providers = ProviderRegistry.shared.all.map { $0.providerId }
         var result: [[String: Any]] = []
         for provId in providers {
-            let service = "com.openflix.vortex.\(provId)"
+            let service = "com.openflix.cli.\(provId)"
             let query: [String: Any] = [
                 kSecClass as String: kSecClassGenericPassword,
                 kSecAttrService as String: service,

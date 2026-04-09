@@ -51,7 +51,7 @@ final class MiniMaxClient: VideoProvider {
         guard let statusCode = baseResp?["status_code"] as? Int, statusCode == 0,
               let taskId = json?["task_id"] as? String else {
             let msg = baseResp?["status_msg"] as? String ?? "Unknown MiniMax error"
-            throw VortexError.invalidResponse("MiniMax: \(msg)")
+            throw OpenFlixError.invalidResponse("MiniMax: \(msg)")
         }
         return GenerationSubmission(
             remoteTaskId: taskId,

@@ -34,17 +34,17 @@ struct ProvidersListCommand: AsyncParsableCommand {
     }
 }
 
-// Top-level `vortex models` shortcut
+// Top-level `openflix models` shortcut
 struct Models: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "models",
-        abstract: "List models for a provider (alias: vortex providers models)",
+        abstract: "List models for a provider (alias: openflix providers models)",
         discussion: """
         Lists all available models with capabilities and pricing.
 
         EXAMPLES
-          vortex models --provider fal
-          vortex models --provider replicate --pretty
+          openflix models --provider fal
+          openflix models --provider replicate --pretty
         """
     )
 

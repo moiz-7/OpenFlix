@@ -5,13 +5,13 @@ struct List: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         abstract: "List generation history",
         discussion: """
-        Lists all generations stored in ~/.vortex/store.json.
+        Lists all generations stored in ~/.openflix/store.json.
 
         EXAMPLES
-          vortex list
-          vortex list --status succeeded
-          vortex list --provider fal --limit 10
-          vortex list --pretty
+          openflix list
+          openflix list --status succeeded
+          openflix list --provider fal --limit 10
+          openflix list --pretty
         """
     )
 
