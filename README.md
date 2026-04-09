@@ -3,22 +3,22 @@
 Generate AI videos from your terminal. Works with every major video generation API — bring your own keys.
 
 ```
-vortex generate "a red panda eating ramen in tokyo" --provider fal --model wan-pro
+openflix generate "a red panda eating ramen in tokyo" --provider fal --model wan-pro
 ```
 
 ## Install
 
 ```bash
-brew install bubble-research/tap/vortex
+brew install bubble-research/tap/openflix
 ```
 
 Or build from source (requires macOS 14+, Xcode 15+):
 
 ```bash
-git clone https://github.com/bubble-research/OpenFlix.git
+git clone https://github.com/moiz-7/OpenFlix.git
 cd OpenFlix
 swift build -c release
-cp .build/release/vortex /usr/local/bin/vortex
+cp .build/release/openflix /usr/local/bin/openflix
 ```
 
 ## Setup
@@ -26,12 +26,12 @@ cp .build/release/vortex /usr/local/bin/vortex
 Store your API key for any provider:
 
 ```bash
-vortex keys set fal <your-key>
-vortex keys set replicate <your-key>
-vortex keys set runway <your-key>
-vortex keys set luma <your-key>
-vortex keys set kling <your-key>
-vortex keys set minimax <your-key>
+openflix keys set fal <your-key>
+openflix keys set replicate <your-key>
+openflix keys set runway <your-key>
+openflix keys set luma <your-key>
+openflix keys set kling <your-key>
+openflix keys set minimax <your-key>
 ```
 
 Keys are stored in the system Keychain — never in plain text.
@@ -65,37 +65,37 @@ Keys are stored in the system Keychain — never in plain text.
 
 ```bash
 # Generate and wait for result
-vortex generate "timelapse of a city at night" --provider runway --model gen4-turbo --wait
+openflix generate "timelapse of a city at night" --provider runway --model gen4-turbo --wait
 
 # List recent generations
-vortex list --limit 10
+openflix list --limit 10
 
 # Check provider health
-vortex health
+openflix health
 
 # Set a daily spend limit
-vortex budget set --daily 10.00
+openflix budget set --daily 10.00
 
 # Run a multi-shot project
-vortex project run my-project-id --evaluate --quality-threshold 0.7
+openflix project run my-project-id --evaluate --quality-threshold 0.7
 
 # Batch submit from file
-vortex batch jobs.json --concurrency 3
+openflix batch jobs.json --concurrency 3
 ```
 
 ## Providers & Models
 
-Run `vortex providers` to see all supported models and current health status.
+Run `openflix providers` to see all supported models and current health status.
 
 ## MCP Support
 
-vortex ships an MCP server for use with Claude and other AI assistants:
+OpenFlix ships an MCP server for use with Claude and other AI assistants:
 
 ```bash
-vortex mcp
+openflix mcp
 ```
 
-Add to your MCP client config and call tools like `vortex_generate`, `vortex_list`, `vortex_status` directly from your AI assistant.
+Add to your MCP client config and call tools like `openflix_generate`, `openflix_list`, `openflix_status` directly from your AI assistant.
 
 ## License
 
