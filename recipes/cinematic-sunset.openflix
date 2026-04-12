@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d",
+      "name": "Cinematic Sunset",
+      "promptText": "Cinematic golden hour sunset over a calm ocean, drone shot slowly pulling back to reveal a rocky coastline, warm orange and purple tones, lens flare, volumetric light rays through scattered clouds, 4K film grain",
+      "negativePromptText": "blurry, low quality, text, watermark",
+      "provider": "fal",
+      "model": "fal-ai/veo3",
+      "aspectRatio": "16:9",
+      "durationSeconds": 8,
+      "widthPx": 1280,
+      "heightPx": 720,
+      "category": "cinematic"
+    }
+  ]
+}

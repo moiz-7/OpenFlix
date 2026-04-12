@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f80",
+      "name": "Mountain Cloud Timelapse",
+      "promptText": "Timelapse of clouds rolling over snow-capped mountain peaks at sunrise, dramatic shadows moving across valleys, fog filling and draining from mountain passes, epic landscape cinematography, golden light transitions to cool blue tones",
+      "negativePromptText": "blurry, low quality, text, watermark, people, buildings",
+      "provider": "fal",
+      "model": "fal-ai/wan/v2.1/1080p",
+      "aspectRatio": "16:9",
+      "durationSeconds": 5,
+      "widthPx": 1920,
+      "heightPx": 1080,
+      "category": "nature"
+    }
+  ]
+}
