@@ -3,3 +3,7 @@
 *.d
 .DS_Store
 test.sh
+
+# Internal reports
+*-report.md
+openflix-strategy.md
