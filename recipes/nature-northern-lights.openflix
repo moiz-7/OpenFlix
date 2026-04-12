@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "b1c5d9e3-8f0a-4c2d-4e6f-9a1b3c5d6e80",
+      "name": "Northern Lights",
+      "promptText": "Breathtaking aurora borealis dancing across an Arctic sky in real-time, vivid green and purple curtains of light rippling and folding above a snow-covered Scandinavian landscape. Low-angle wide shot from a frozen lake reflecting the aurora, stars visible through gaps in the display, time-lapse clouds drifting at the horizon, deep teal shadows on the snow.",
+      "negativePromptText": "artificial, CGI look, text, watermark, urban",
+      "provider": "fal",
+      "model": "fal-ai/veo3",
+      "aspectRatio": "16:9",
+      "durationSeconds": 10,
+      "widthPx": 1280,
+      "heightPx": 720,
+      "category": "nature"
+    }
+  ]
+}

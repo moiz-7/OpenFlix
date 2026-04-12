@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "a4b8c2d6-1e3f-4b5a-7c9d-2e4f6a8b9c13",
+      "name": "Anime Rain Scene",
+      "promptText": "Melancholic anime scene of a teenager standing alone at a bus stop in heavy rain, reflections shimmering on the wet asphalt road. Close-up of raindrops splashing on the character's umbrella, then a wide establishing shot of the empty suburban street, Makoto Shinkai-style hyper-detailed rain rendering with rich blue and grey tones.",
+      "negativePromptText": "3D render, photorealistic, blurry, low quality",
+      "provider": "fal",
+      "model": "fal-ai/kling-video/v2/master/text-to-video",
+      "aspectRatio": "16:9",
+      "durationSeconds": 8,
+      "widthPx": 1280,
+      "heightPx": 720,
+      "category": "anime"
+    }
+  ]
+}

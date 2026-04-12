@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "c0d4e8f2-7a9b-4d1c-3e5f-8a0b2c4d5e79",
+      "name": "Mecha Robot Battle",
+      "promptText": "Giant mecha robots clashing in a destroyed cityscape, one robot launching a rocket punch that explodes on impact with dynamic speed lines and shockwave rings. Low-angle dramatic shot looking up at towering machines, cel-shaded style with bold outlines, fiery orange explosions against a stormy grey sky, debris flying in slow motion.",
+      "negativePromptText": "3D render, photorealistic, blurry, low quality",
+      "provider": "fal",
+      "model": "fal-ai/veo3",
+      "aspectRatio": "16:9",
+      "durationSeconds": 10,
+      "widthPx": 1280,
+      "heightPx": 720,
+      "category": "anime"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "d5e9f3a7-2b4c-4e6d-8f0a-3c5d7e9f0b24",
+      "name": "Pet Compilation",
+      "promptText": "Adorable golden retriever puppy compilation — head tilt close-up, clumsy run across a living room, dramatic slow-motion mid-air catch of a treat, and a cozy curl-up in a sunbeam for the finale. Warm natural home lighting, shallow depth of field on a 50mm lens, soft pastel interior backdrop, heartwarming and shareable energy with snappy cuts.",
+      "negativePromptText": "horizontal framing, slow pacing, text overlay",
+      "provider": "fal",
+      "model": "fal-ai/minimax/hailuo-02",
+      "aspectRatio": "9:16",
+      "durationSeconds": 6,
+      "widthPx": 720,
+      "heightPx": 1280,
+      "category": "social"
+    }
+  ]
+}

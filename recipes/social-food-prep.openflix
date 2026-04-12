@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "f1a5b9c3-8d0e-4a2f-4b6c-9d1e3f5a6b80",
+      "name": "Viral Food Prep",
+      "promptText": "Overhead top-down shot of hands rapidly assembling a colorful poke bowl, ingredients flying in from the edges of frame in satisfying succession — rice base, diced tuna, avocado slices, edamame, mango cubes, sesame seeds sprinkled last. Punchy saturated colors, crisp focus, fast-paced editing rhythm with brief pauses on each ingredient landing perfectly in place.",
+      "negativePromptText": "horizontal framing, slow pacing, text overlay",
+      "provider": "fal",
+      "model": "fal-ai/minimax/hailuo-02",
+      "aspectRatio": "9:16",
+      "durationSeconds": 5,
+      "widthPx": 720,
+      "heightPx": 1280,
+      "category": "social"
+    }
+  ]
+}

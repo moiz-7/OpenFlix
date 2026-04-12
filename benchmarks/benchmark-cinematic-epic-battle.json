@@ -1,0 +1,14 @@
+{
+  "recipe_id": "f7a83c12-4e91-4b3d-a6f0-9c8d7e2b1a45",
+  "recipe_name": "Epic Battle Sequence",
+  "prompt": "Sweeping aerial shot of two medieval armies clashing on a misty battlefield at dawn, slow-motion swords and shields colliding with sparks flying, dramatic dolly zoom into the frontline chaos. Anamorphic lens flare, desaturated teal-and-orange color grade, Dolby Vision HDR highlights on armor reflections.",
+  "results": [
+    {"provider": "fal", "model": "fal-ai/veo3", "quality": 89, "cost_usd": 0.50, "latency_seconds": 52, "status": "succeeded"},
+    {"provider": "kling", "model": "kling-v2.6-pro", "quality": 78, "cost_usd": 0.45, "latency_seconds": 68, "status": "succeeded"},
+    {"provider": "runway", "model": "gen4_turbo", "quality": 83, "cost_usd": 0.60, "latency_seconds": 41, "status": "succeeded"},
+    {"provider": "luma", "model": "ray-2", "quality": 72, "cost_usd": 0.80, "latency_seconds": 35, "status": "succeeded"}
+  ],
+  "winner_provider": "fal",
+  "winner_model": "fal-ai/veo3",
+  "winner_reason": "Highest quality (89) with competitive latency"
+}

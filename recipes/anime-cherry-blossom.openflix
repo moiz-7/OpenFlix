@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "d1e5f9a3-8b0c-4e2d-4f6a-9b1c3d5e6f80",
+      "name": "Cherry Blossom Scene",
+      "promptText": "Serene anime scene of a young woman sitting under a massive cherry blossom tree on a hilltop, petals drifting slowly across the frame in a gentle breeze. Soft watercolor-style backgrounds, warm afternoon light filtering through branches, slow pan revealing a distant Japanese village below, Studio Ghibli-inspired palette of soft pinks and greens.",
+      "negativePromptText": "3D render, photorealistic, blurry, low quality",
+      "provider": "fal",
+      "model": "fal-ai/kling-video/v2/master/text-to-video",
+      "aspectRatio": "16:9",
+      "durationSeconds": 8,
+      "widthPx": 1280,
+      "heightPx": 720,
+      "category": "anime"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "e4f8a2b6-1c3d-4f5a-7b9c-2d4e6f8a9b13",
+      "name": "Savanna Wildlife",
+      "promptText": "Golden hour on the African savanna, a herd of elephants silhouetted against a massive orange sun walking along the horizon. Slow telephoto tracking shot with heat shimmer distortion, acacia trees framing the composition, dust kicked up by hooves catching the backlight, warm earthy tones with deep amber sky, National Geographic documentary cinematography style.",
+      "negativePromptText": "artificial, CGI look, text, watermark, urban",
+      "provider": "fal",
+      "model": "fal-ai/veo3",
+      "aspectRatio": "16:9",
+      "durationSeconds": 8,
+      "widthPx": 1280,
+      "heightPx": 720,
+      "category": "nature"
+    }
+  ]
+}

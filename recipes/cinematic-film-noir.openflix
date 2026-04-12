@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "a3b94d27-8f12-4c6e-b5a1-3d7e0f9c8b62",
+      "name": "Film Noir Detective",
+      "promptText": "A lone detective in a fedora walks down a rain-slicked alley lit by a single flickering neon sign, high-contrast black-and-white with deep shadows. Slow tracking shot from behind, cigarette smoke curling into the light, 35mm film grain, Venetian blind shadows cast across brick walls.",
+      "negativePromptText": "blurry, low quality, text, watermark, shaky camera",
+      "provider": "fal",
+      "model": "fal-ai/kling-video/v2/master/text-to-video",
+      "aspectRatio": "16:9",
+      "durationSeconds": 8,
+      "widthPx": 1280,
+      "heightPx": 720,
+      "category": "cinematic"
+    }
+  ]
+}

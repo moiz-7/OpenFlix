@@ -1,0 +1,13 @@
+{
+  "recipe_id": "f1a5b9c3-8d0e-4a2f-4b6c-9d1e3f5a6b80",
+  "recipe_name": "Viral Food Prep",
+  "prompt": "Overhead top-down shot of hands rapidly assembling a colorful poke bowl, ingredients flying in from the edges of frame in satisfying succession — rice base, diced tuna, avocado slices, edamame, mango cubes, sesame seeds sprinkled last. Punchy saturated colors, crisp focus, fast-paced editing rhythm with brief pauses on each ingredient landing perfectly in place.",
+  "results": [
+    {"provider": "fal", "model": "fal-ai/minimax/hailuo-02", "quality": 81, "cost_usd": 0.18, "latency_seconds": 28, "status": "succeeded"},
+    {"provider": "minimax", "model": "video-01-live", "quality": 77, "cost_usd": 0.15, "latency_seconds": 25, "status": "succeeded"},
+    {"provider": "fal", "model": "fal-ai/veo3", "quality": 85, "cost_usd": 0.35, "latency_seconds": 44, "status": "succeeded"}
+  ],
+  "winner_provider": "fal",
+  "winner_model": "fal-ai/veo3",
+  "winner_reason": "Highest quality (85) though Hailuo-02 offers best value at lower cost"
+}

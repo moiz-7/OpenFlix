@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "f7a1b5c9-4d6e-4b8f-0c3d-5e7f9a1b2c46",
+      "name": "Horror Movie Opening",
+      "promptText": "Slow dolly shot down a dimly lit Victorian hallway, wallpaper peeling, a single candle flickering on a side table casting dancing shadows. A door at the end of the hall creaks open by itself revealing pitch darkness, camera continues pushing forward, floor boards creaking, brief flash of a pale face in a mirror reflection, desaturated cold blue-green grade with crushed shadows.",
+      "negativePromptText": "amateur, low quality, poor lighting, shaky",
+      "provider": "runway",
+      "model": "gen4_turbo",
+      "aspectRatio": "16:9",
+      "durationSeconds": 10,
+      "widthPx": 1280,
+      "heightPx": 720,
+      "category": "trailer"
+    }
+  ]
+}

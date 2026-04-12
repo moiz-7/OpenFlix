@@ -1,0 +1,13 @@
+{
+  "recipe_id": "d7e1f5a9-4b6c-4e8d-0f2a-5b7c9d1e2f46",
+  "recipe_name": "Watch Mechanism",
+  "prompt": "Extreme macro shot diving into the exposed mechanical movement of a luxury Swiss watch, gears meshing and balance wheel oscillating in crisp slow motion. Camera pushes through layers of complications revealing ruby jewels and polished steel bridges, warm tungsten lighting reflecting off brushed and polished surfaces, shallow depth of field isolating each component.",
+  "results": [
+    {"provider": "runway", "model": "gen4_turbo", "quality": 93, "cost_usd": 0.70, "latency_seconds": 48, "status": "succeeded"},
+    {"provider": "fal", "model": "fal-ai/veo3", "quality": 87, "cost_usd": 0.55, "latency_seconds": 56, "status": "succeeded"},
+    {"provider": "kling", "model": "kling-v2.6-pro", "quality": 74, "cost_usd": 0.50, "latency_seconds": 72, "status": "succeeded"}
+  ],
+  "winner_provider": "runway",
+  "winner_model": "gen4_turbo",
+  "winner_reason": "Highest quality (93) with superior macro detail rendering"
+}

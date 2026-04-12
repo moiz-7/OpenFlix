@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "e0f4a8b2-7c9d-4f1a-3b5c-8d0e2f4a5b79",
+      "name": "Smoke Tendrils",
+      "promptText": "Ethereal wisps of colored smoke rising and intertwining in slow motion against a pure black backdrop, tendrils curling and folding into impossible knot-like formations. Alternating between warm amber smoke and cool indigo streams that never quite mix, side-lit with a single hard light source creating sharp edge definition, contemplative and hypnotic movement.",
+      "negativePromptText": "photorealistic, text, watermark, figurative",
+      "provider": "luma",
+      "model": "ray-2",
+      "aspectRatio": "16:9",
+      "durationSeconds": 8,
+      "widthPx": 1280,
+      "heightPx": 720,
+      "category": "abstract"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "c6d0e4f8-3a5b-4e7c-9f1a-4b6c8d0e1f35",
+      "name": "Podcast Recording",
+      "promptText": "Two podcast hosts seated across from each other at a professional recording desk with boom-arm microphones, one speaking passionately while the other listens and nods. Acoustic foam panels on walls, warm Edison bulb lighting, matching branded mugs on the desk, medium two-shot gradually tightening to a single on the speaker, cozy studio atmosphere with rich warm tones and subtle depth.",
+      "negativePromptText": "action sequence, blurry, poor audio setup visual",
+      "provider": "fal",
+      "model": "fal-ai/kling-video/v2/master/text-to-video",
+      "aspectRatio": "16:9",
+      "durationSeconds": 8,
+      "widthPx": 1280,
+      "heightPx": 720,
+      "category": "dialogue"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "d9e3f7a1-6b8c-4e0f-2a4b-7c9d1e3f4a68",
+      "name": "Light Prism Refraction",
+      "promptText": "A beam of pure white light entering a rotating glass prism and splitting into a full rainbow spectrum that fans across a dark void, each wavelength separating into distinct flowing ribbons of color. Camera slowly orbiting the prism, caustic light patterns dancing on invisible surfaces, volumetric light scattering, minimalist composition with maximum chromatic impact.",
+      "negativePromptText": "photorealistic, text, watermark, figurative",
+      "provider": "fal",
+      "model": "fal-ai/veo3",
+      "aspectRatio": "16:9",
+      "durationSeconds": 8,
+      "widthPx": 1280,
+      "heightPx": 720,
+      "category": "abstract"
+    }
+  ]
+}

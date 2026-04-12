@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "f7a83c12-4e91-4b3d-a6f0-9c8d7e2b1a45",
+      "name": "Epic Battle Sequence",
+      "promptText": "Sweeping aerial shot of two medieval armies clashing on a misty battlefield at dawn, slow-motion swords and shields colliding with sparks flying, dramatic dolly zoom into the frontline chaos. Anamorphic lens flare, desaturated teal-and-orange color grade, Dolby Vision HDR highlights on armor reflections.",
+      "negativePromptText": "blurry, low quality, text, watermark, shaky camera",
+      "provider": "fal",
+      "model": "fal-ai/veo3",
+      "aspectRatio": "16:9",
+      "durationSeconds": 10,
+      "widthPx": 1280,
+      "heightPx": 720,
+      "category": "cinematic"
+    }
+  ]
+}

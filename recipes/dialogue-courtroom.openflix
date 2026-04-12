@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "e2f6a0b4-9c1d-4a3e-5b7c-0d2e4f6a7b91",
+      "name": "Courtroom Drama",
+      "promptText": "Tense courtroom scene with a lawyer delivering a closing argument, slow push-in on the speaker's face showing conviction and controlled emotion. Cut to reaction shots of the jury listening intently, judge presiding from the bench above, warm wood-paneled interior with dramatic overhead practicals casting pools of light, shallow depth of field isolating key characters, legal drama cinematography.",
+      "negativePromptText": "action sequence, blurry, poor audio setup visual",
+      "provider": "fal",
+      "model": "fal-ai/kling-video/v2/master/text-to-video",
+      "aspectRatio": "16:9",
+      "durationSeconds": 10,
+      "widthPx": 1280,
+      "heightPx": 720,
+      "category": "dialogue"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "c8d2e6f0-5a7b-4d9e-1f3a-6b8c0d2e3f57",
+      "name": "Geometric Tessellation",
+      "promptText": "Evolving geometric tessellation pattern where triangles fold into hexagons that morph into Penrose tiles in a continuous transformation. Isometric perspective with subtle parallax depth, clean vector-sharp edges with soft gradient fills transitioning through a monochromatic teal-to-white palette, satisfying mechanical precision with organic easing curves.",
+      "negativePromptText": "photorealistic, text, watermark, figurative",
+      "provider": "luma",
+      "model": "ray-2",
+      "aspectRatio": "16:9",
+      "durationSeconds": 8,
+      "widthPx": 1280,
+      "heightPx": 720,
+      "category": "abstract"
+    }
+  ]
+}

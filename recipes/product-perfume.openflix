@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "b5c9d3e7-2f4a-4c6b-8d0e-3f5a7b9c0d24",
+      "name": "Perfume Bottle Reveal",
+      "promptText": "Luxury perfume bottle rising from a pool of liquid gold, droplets cascading in slow motion as the bottle rotates to reveal its faceted crystal design. Dramatic rim lighting from behind creates a glowing halo effect, deep black background with subtle smoke wisps, macro lens capturing every refraction and surface detail.",
+      "negativePromptText": "blurry, text overlay, low resolution, cluttered background",
+      "provider": "runway",
+      "model": "gen4_turbo",
+      "aspectRatio": "16:9",
+      "durationSeconds": 8,
+      "widthPx": 1280,
+      "heightPx": 720,
+      "category": "product"
+    }
+  ]
+}

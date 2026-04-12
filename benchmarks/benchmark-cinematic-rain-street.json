@@ -1,0 +1,14 @@
+{
+  "recipe_id": "a8b2c6d0-5e7f-4b9a-1c3d-6e8f0a2b3e57",
+  "recipe_name": "Rain-Soaked Street Scene",
+  "prompt": "Atmospheric slow-motion shot of heavy rain falling on a neon-lit Tokyo street at midnight, puddles reflecting glowing signage in Japanese. A lone figure with a transparent umbrella crosses the frame, Steadicam follow shot at eye level, anamorphic lens streaks from neon lights, moody cyberpunk color grade with magenta and electric blue.",
+  "results": [
+    {"provider": "fal", "model": "fal-ai/kling-video/v2/master/text-to-video", "quality": 86, "cost_usd": 0.40, "latency_seconds": 48, "status": "succeeded"},
+    {"provider": "fal", "model": "fal-ai/veo3", "quality": 90, "cost_usd": 0.48, "latency_seconds": 54, "status": "succeeded"},
+    {"provider": "runway", "model": "gen4_turbo", "quality": 82, "cost_usd": 0.56, "latency_seconds": 40, "status": "succeeded"},
+    {"provider": "fal", "model": "fal-ai/luma-dream-machine", "quality": 65, "cost_usd": 0.20, "latency_seconds": 30, "status": "succeeded"}
+  ],
+  "winner_provider": "fal",
+  "winner_model": "fal-ai/veo3",
+  "winner_reason": "Highest quality (90) with exceptional rain and neon reflection detail"
+}

@@ -1,0 +1,14 @@
+{
+  "recipe_id": "b1c5d9e3-8f0a-4c2d-4e6f-9a1b3c5d6e80",
+  "recipe_name": "Northern Lights",
+  "prompt": "Breathtaking aurora borealis dancing across an Arctic sky in real-time, vivid green and purple curtains of light rippling and folding above a snow-covered Scandinavian landscape. Low-angle wide shot from a frozen lake reflecting the aurora, stars visible through gaps in the display, time-lapse clouds drifting at the horizon, deep teal shadows on the snow.",
+  "results": [
+    {"provider": "fal", "model": "fal-ai/veo3", "quality": 94, "cost_usd": 0.55, "latency_seconds": 61, "status": "succeeded"},
+    {"provider": "fal", "model": "fal-ai/wan/v2.1/1080p", "quality": 80, "cost_usd": 0.30, "latency_seconds": 42, "status": "succeeded"},
+    {"provider": "luma", "model": "ray-2", "quality": 76, "cost_usd": 0.80, "latency_seconds": 34, "status": "succeeded"},
+    {"provider": "kling", "model": "kling-v2.6-pro", "quality": 71, "cost_usd": 0.50, "latency_seconds": 75, "status": "succeeded"}
+  ],
+  "winner_provider": "fal",
+  "winner_model": "fal-ai/veo3",
+  "winner_reason": "Highest quality (94) with exceptional aurora dynamics"
+}

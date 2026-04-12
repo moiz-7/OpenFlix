@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "b5c9d3e7-2f4a-4d6b-8e0f-3a5b7c9d0e24",
+      "name": "News Anchor Delivery",
+      "promptText": "Professional news anchor seated at a sleek broadcast desk delivering breaking news, confident eye contact with the camera, subtle hand gestures for emphasis. Modern newsroom set with LED video walls displaying graphics in the background, three-point broadcast lighting with fill and backlight, clean corporate color scheme of navy and silver, broadcast-standard framing with lower-third space preserved.",
+      "negativePromptText": "action sequence, blurry, poor audio setup visual",
+      "provider": "fal",
+      "model": "fal-ai/kling-video/v2/master/text-to-video",
+      "aspectRatio": "16:9",
+      "durationSeconds": 8,
+      "widthPx": 1280,
+      "heightPx": 720,
+      "category": "dialogue"
+    }
+  ]
+}

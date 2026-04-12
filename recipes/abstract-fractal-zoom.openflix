@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "a6b0c4d8-3e5f-4b7c-9d1e-4f6a8b0c1d35",
+      "name": "Fractal Zoom",
+      "promptText": "Infinite fractal zoom into a Mandelbrot set, smoothly accelerating through layers of self-similar patterns that morph from organic coral shapes to crystalline geometric structures. Color palette shifting from deep ocean blues through electric purples to molten gold, seamless loop transition, hypnotic and meditative pacing with gentle rotational drift.",
+      "negativePromptText": "photorealistic, text, watermark, figurative",
+      "provider": "luma",
+      "model": "ray-2",
+      "aspectRatio": "16:9",
+      "durationSeconds": 8,
+      "widthPx": 1280,
+      "heightPx": 720,
+      "category": "abstract"
+    }
+  ]
+}

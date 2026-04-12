@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "c0d4e8f2-7a9b-4e1c-3f5a-8b0c2d4e5f79",
+      "name": "Music Video Teaser",
+      "promptText": "Stylized music video teaser with a singer performing in a surreal environment — a crumbling cathedral filled with floating rose petals, dramatic spotlight cutting through haze. Intercut with abstract visual metaphors: shattering glass in reverse, ink dropping into water, time-lapse storm clouds, all synchronized to an implied beat, high-fashion editorial color grade with crushed blacks and lifted shadows.",
+      "negativePromptText": "amateur, low quality, poor lighting, shaky",
+      "provider": "runway",
+      "model": "gen4_turbo",
+      "aspectRatio": "16:9",
+      "durationSeconds": 8,
+      "widthPx": 1280,
+      "heightPx": 720,
+      "category": "trailer"
+    }
+  ]
+}

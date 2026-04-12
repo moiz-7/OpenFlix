@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "b3c7d1e5-0f2a-4c4b-6d8e-1f3a5b7c8d02",
+      "name": "Outfit Reveal",
+      "promptText": "Person in casual loungewear snapping fingers, cutting to a glamorous evening outfit with a full 360-degree spin reveal in a minimalist white studio. Before-and-after split with a satisfying match-cut on the snap gesture, confident posing with dramatic key lighting, warm skin tones against clean neutral backdrop, fashion editorial energy condensed into vertical format.",
+      "negativePromptText": "horizontal framing, slow pacing, text overlay",
+      "provider": "fal",
+      "model": "fal-ai/minimax/hailuo-02",
+      "aspectRatio": "9:16",
+      "durationSeconds": 5,
+      "widthPx": 720,
+      "heightPx": 1280,
+      "category": "social"
+    }
+  ]
+}

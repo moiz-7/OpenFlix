@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "c4d8e2f6-1a3b-4d5c-7e9f-2a4b6c8d9e13",
+      "name": "Travel Montage",
+      "promptText": "Fast-paced travel montage cycling through iconic destinations — a hand dragging across ancient temple stones, feet walking on turquoise beach sand, POV looking up at towering European cathedral ceilings, hands holding street food in a bustling Asian night market. Quick whip-pan transitions between each scene, warm travel film color grade, energetic and aspirational mood.",
+      "negativePromptText": "horizontal framing, slow pacing, text overlay",
+      "provider": "fal",
+      "model": "fal-ai/minimax/hailuo-02",
+      "aspectRatio": "9:16",
+      "durationSeconds": 6,
+      "widthPx": 720,
+      "heightPx": 1280,
+      "category": "social"
+    }
+  ]
+}

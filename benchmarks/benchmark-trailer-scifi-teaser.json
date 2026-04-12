@@ -1,0 +1,14 @@
+{
+  "recipe_id": "e6f0a4b8-3c5d-4a7e-9b2c-4d6e8f0a1b35",
+  "recipe_name": "Sci-Fi Movie Teaser",
+  "prompt": "Fade from black into a massive derelict spaceship drifting through an asteroid field, camera slowly pushing through a shattered hull breach into the dark interior. Emergency lights flickering red, floating debris, a distant silhouette moving in the shadows. Quick cut to an exterior shot of the ship's engines igniting with blue plasma, dramatic low brass score energy, IMAX-scale framing.",
+  "results": [
+    {"provider": "fal", "model": "fal-ai/veo3", "quality": 92, "cost_usd": 0.60, "latency_seconds": 67, "status": "succeeded"},
+    {"provider": "runway", "model": "gen4_turbo", "quality": 86, "cost_usd": 0.70, "latency_seconds": 45, "status": "succeeded"},
+    {"provider": "fal", "model": "fal-ai/hunyuan-video", "quality": 69, "cost_usd": 0.25, "latency_seconds": 38, "status": "succeeded"},
+    {"provider": "luma", "model": "ray-2", "quality": 74, "cost_usd": 0.80, "latency_seconds": 36, "status": "succeeded"}
+  ],
+  "winner_provider": "fal",
+  "winner_model": "fal-ai/veo3",
+  "winner_reason": "Highest quality (92) with best sci-fi environment rendering"
+}
