@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "e5f6a7b8-c9d0-4e1f-2a3b-4c5d6e7f8091",
+      "name": "Abstract Fluid Morph",
+      "promptText": "Abstract fluid art morphing between organic shapes, iridescent metallic liquids blending with deep blues and neon pinks, smooth slow-motion transitions, mesmerizing kaleidoscopic patterns, reflective surfaces with caustic light patterns",
+      "negativePromptText": "text, watermark, faces, people, realistic objects",
+      "provider": "luma",
+      "model": "ray-2",
+      "aspectRatio": "1:1",
+      "durationSeconds": 5,
+      "widthPx": 1280,
+      "heightPx": 720,
+      "category": "abstract"
+    }
+  ]
+}

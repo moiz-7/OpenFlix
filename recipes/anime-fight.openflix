@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "b2c3d4e5-f6a7-4b8c-9d0e-1f2a3b4c5d6e",
+      "name": "Anime Sword Fight",
+      "promptText": "Anime-style sword fight between two warriors in a bamboo forest, fast slashing motions with glowing energy trails, dramatic camera angles, cherry blossom petals floating through the air, dynamic lighting with motion blur on blades",
+      "negativePromptText": "realistic, photographic, blurry, low quality, text",
+      "provider": "fal",
+      "model": "fal-ai/kling-video/v2/master/text-to-video",
+      "aspectRatio": "16:9",
+      "durationSeconds": 10,
+      "widthPx": 1280,
+      "heightPx": 720,
+      "category": "anime"
+    }
+  ]
+}

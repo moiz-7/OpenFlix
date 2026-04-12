@@ -1,10 +1,17 @@
 # OpenFlix
 
-**AI video generation from your terminal.** Bring your own API keys, generate videos from six providers, orchestrate multi-shot projects with DAG execution, and plug directly into AI agents via MCP.
+**AI video generation from your terminal.**
 
-[![License: Proprietary](https://img.shields.io/badge/License-Proprietary-red.svg)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](../LICENSE)
 [![Platform: macOS 14+](https://img.shields.io/badge/platform-macOS%2014%2B-lightgrey)](https://developer.apple.com/macos/)
 [![Swift 5.9+](https://img.shields.io/badge/swift-5.9%2B-orange)](https://swift.org)
+
+OpenFlix is a command-line tool for generating AI videos across multiple providers. Bring your own API keys, submit generations, poll for results, download videos, and orchestrate multi-shot projects — all from a single binary. Every command outputs structured JSON to stdout, making it native to scripting, pipelines, and AI agents.
+
+```
+openflix generate "a cat floating through space" \
+    --provider fal --model fal-ai/veo3 --wait
+```
 
 ---
 
@@ -14,34 +21,35 @@
 2. [Quick Start](#quick-start)
 3. [Why OpenFlix?](#why-openflix)
 4. [Command Reference](#command-reference)
-5. [Providers and Models](#providers-and-models)
-6. [Budget and Safety](#budget-and-safety)
+5. [Providers & Models](#providers--models)
+6. [Budget & Safety](#budget--safety)
 7. [MCP Server](#mcp-server)
-8. [Daemon and Project Orchestration](#daemon-and-project-orchestration)
-9. [Architecture](#architecture)
-10. [Error Codes](#error-codes)
-11. [Contributing](#contributing)
-12. [License](#license)
+8. [Daemon](#daemon)
+9. [Projects](#projects)
+10. [Architecture](#architecture)
+11. [Exit Codes](#exit-codes)
+12. [Contributing](#contributing)
+13. [License](#license)
 
 ---
 
 ## Install
 
-### Homebrew (recommended)
+### Homebrew
 
 ```sh
-brew install bubble-research/tap/openflix
+brew install openflix
 ```
 
 ### Build from source
 
-Requirements: macOS 14+, Xcode 15+ or Swift 5.9+.
+Requires macOS 14 (Sonoma)+, Xcode 15+ or Swift 5.9+.
 
 ```sh
-git clone https://github.com/moiz-7/OpenFlix.git
-cd OpenFlix
+git clone https://github.com/openflix/openflix.git
+cd openflix/VortexCLI
 swift build -c release
-cp .build/release/openflix /usr/local/bin/
+cp .build/release/openflix /usr/local/bin/openflix
 ```
 
 ---
@@ -49,20 +57,18 @@ cp .build/release/openflix /usr/local/bin/
 ## Quick Start
 
 ```sh
-# 1. Store your API key
-openflix keys set fal YOUR_FAL_API_KEY
+# 1. Store your API key in the macOS Keychain
+openflix keys set fal YOUR_FAL_KEY
 
 # 2. Generate a video and wait for the result
-openflix generate "a red panda riding a skateboard through Tokyo" \
-  --provider fal \
-  --model fal-ai/veo3 \
-  --wait
+openflix generate "neon city timelapse at sunset" \
+    --provider fal --model fal-ai/minimax/hailuo-02 --wait
 
-# 3. Check all your generations
-openflix list --pretty
+# 3. List your generations
+openflix list --status succeeded --limit 5
 ```
 
-All output is newline-terminated JSON. Pipe it into `jq`, store it in a file, or feed it to another program without any parsing workarounds.
+All output is newline-terminated JSON. Pipe into `jq`, store in a file, or feed to another program.
 
 ---
 
@@ -70,541 +76,486 @@ All output is newline-terminated JSON. Pipe it into `jq`, store it in a file, or
 
 ### For humans
 
-- **Bring Your Own Keys (BYOK):** your API keys are stored in the macOS Keychain, never sent anywhere except to the provider you choose.
-- **Six providers, 24 models:** compare results across fal.ai, Replicate, Runway, Luma, Kling, and MiniMax without leaving the terminal.
-- **Streaming progress:** pass `--stream` to receive newline-delimited JSON events as a generation moves from queued to processing to complete.
-- **Cost visibility:** every generation records an estimated and actual cost. Run `openflix cost` for a per-provider breakdown.
-- **Multi-shot projects:** define a scene graph in JSON, run it with `openflix project run`, and get a concat-ready ffmpeg manifest when it finishes.
+- **One tool, six providers.** Switch between fal.ai, Replicate, Runway, Luma, Kling, and MiniMax without learning six different APIs.
+- **Keys stay in your Keychain.** API keys are stored in macOS Keychain, not dotfiles. Environment variables work too.
+- **Cost visibility.** Per-generation cost estimates, daily/monthly budgets, and spend summaries before you get a surprise bill.
+- **Streaming progress.** Pass `--stream` to receive newline-delimited JSON events as a generation moves from queued to processing to complete.
+- **Project orchestration.** Define multi-shot video projects as JSON, execute them as a dependency DAG with parallel workers, export an ffmpeg concat manifest.
 
 ### For AI agents
 
-- **Machine-readable output:** every command emits JSON to stdout, every error emits JSON to stderr with a stable `code` field.
-- **MCP server:** run `openflix mcp` to expose 14 tools and 3 resources over the Model Context Protocol. Works with Claude Code, Claude Desktop, and any MCP-compatible host.
-- **Daemon socket:** a persistent Unix socket server (`~/.vortex/daemon.sock`) accepts JSON-RPC 2.0 messages for agents that need long-lived connections.
-- **Structured error taxonomy:** 18 typed `ErrorCode` values with `retryable` and `http_equivalent` fields so agents know exactly what to do on failure.
-- **Budget guardrails:** set per-generation, daily, and monthly USD limits. Generations that would exceed a limit are rejected before the API call is made.
-- **Prompt safety:** a local heuristic checker blocks or flags prompts before they reach any provider.
-- **Health check:** `openflix health` returns a machine-readable report on store accessibility, downloads directory, and which providers have configured keys.
+- **JSON-first.** Every command writes structured JSON to stdout. Errors go to stderr with machine-readable codes. No tables to parse.
+- **MCP native.** Run `openflix mcp` to expose 14 tools and 3 resources over Model Context Protocol. Claude Code, Cursor, and any MCP client can generate videos as a tool call.
+- **Deterministic exit codes.** `0` for success, `1` for all errors. Structured error payloads include `code`, `retryable`, and `retry_after_seconds`.
+- **Budget guardrails.** Daily, monthly, and per-generation cost limits prevent runaway autonomous spending.
+- **Prompt safety.** Local heuristic checker blocks dangerous prompts before any API call is made.
 
 ---
 
 ## Command Reference
 
-Every command supports `--pretty` for human-readable JSON output and `--api-key` to override the key resolution chain.
+### Generation
+
+| Command | Description |
+|---------|-------------|
+| [`generate`](#generate) | Generate a video |
+| [`status`](#status) | Check generation status |
+| [`list`](#list) | List generation history |
+| [`download`](#download) | Download a completed video |
+| [`cancel`](#cancel) | Cancel a running generation |
+| [`retry`](#retry) | Retry a failed generation |
+| [`delete`](#delete) | Remove from local history |
+| [`purge`](#purge) | Bulk-remove old generations |
+| [`batch`](#batch) | Submit multiple generations in parallel |
+
+### Providers & Keys
+
+| Command | Description |
+|---------|-------------|
+| [`providers`](#providers) | List available providers |
+| [`models`](#models) | List models for a provider |
+| [`keys set`](#keys) | Store API key in Keychain |
+| [`keys get`](#keys) | Retrieve API key |
+| [`keys delete`](#keys) | Remove API key |
+| [`keys list`](#keys) | Show which providers have keys |
+| [`health`](#health) | System diagnostics |
+
+### Cost & Quality
+
+| Command | Description |
+|---------|-------------|
+| [`cost`](#cost) | Spend summary |
+| [`budget status`](#budget) | Current budget and limits |
+| [`budget set`](#budget) | Configure budget limits |
+| [`budget reset`](#budget) | Reset daily spend counter |
+| [`evaluate`](#evaluate) | Evaluate video quality |
+| [`feedback`](#feedback) | Record quality score |
+| [`metrics`](#metrics) | Provider performance metrics |
+
+### Projects
+
+| Command | Description |
+|---------|-------------|
+| [`project create`](#project) | Create from JSON spec |
+| [`project run`](#project-run) | Execute project DAG |
+| [`project status`](#project-status) | Show progress |
+| [`project list`](#project-list) | List all projects |
+| [`project delete`](#project-delete) | Delete project |
+| [`project export`](#project-export) | Export output manifest |
+| [`project shot`](#project-shot) | Manage individual shots |
+
+### Infrastructure
+
+| Command | Description |
+|---------|-------------|
+| [`mcp`](#mcp-server) | Run as MCP server (stdio) |
+| [`daemon start`](#daemon) | Start Unix socket daemon |
+| [`daemon stop`](#daemon) | Stop daemon |
+| [`daemon status`](#daemon) | Check daemon status |
+
+---
 
 ### `generate`
 
 Submit a video generation request.
 
-| Flag / Option | Type | Description |
-|---|---|---|
-| `<prompt>` | argument | Text prompt describing the video |
-| `--provider` | string | Provider ID (replicate, fal, runway, luma, kling, minimax) |
-| `--model` | string | Model ID (see `openflix models --provider <id>`) |
-| `--duration` | double | Duration in seconds (max 600, model-specific cap also applies) |
-| `--aspect-ratio` | string | Aspect ratio, e.g. `16:9`, `9:16`, `1:1` |
-| `--width` | int | Output width in pixels |
-| `--height` | int | Output height in pixels |
-| `--negative-prompt` | string | What to avoid in the video |
-| `--image` | string | Reference image URL or local path (image-to-video models) |
-| `--param` | string (repeatable) | Extra key=value pairs forwarded to the provider, e.g. `audio=true seed=42` |
-| `--wait` | flag | Block until generation completes, then emit final JSON |
-| `--stream` | flag | Emit newline-delimited JSON progress events to stdout |
-| `--timeout` | double | Max seconds to wait (default: 300) |
-| `--poll-interval` | double | Poll interval in seconds (default: 3) |
-| `-o` / `--output` | string | Output file path for the downloaded video |
-| `--api-key` | string | API key (overrides env var and Keychain) |
-| `--skip-download` | flag | Do not download the video after generation completes |
-| `--retry` | int | Max retries on provider failure (default: 0) |
-| `--dry-run` | flag | Validate request and print cost estimate without submitting |
-| `--pretty` | flag | Pretty-print JSON output |
+```sh
+openflix generate "ocean sunrise timelapse" \
+    --provider runway --model gen4_turbo \
+    --duration 5 --aspect-ratio 16:9 --stream
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `<prompt>` | String | required | Text prompt describing the video |
+| `--provider` | String | required | Provider ID (`fal`, `replicate`, `runway`, `luma`, `kling`, `minimax`) |
+| `--model` | String | required | Model ID (run `openflix models --provider <id>` to list) |
+| `--duration` | Double | — | Duration in seconds (max 600, model cap also applies) |
+| `--aspect-ratio` | String | — | e.g. `16:9`, `9:16`, `1:1` |
+| `--width` | Int | — | Output width in pixels |
+| `--height` | Int | — | Output height in pixels |
+| `--negative-prompt` | String | — | What to avoid |
+| `--image` | String | — | Reference image URL or local path (image-to-video models) |
+| `--param` | String[] | `[]` | Extra params as `key=value` (e.g. `audio=true seed=42`) |
+| `-o, --output` | String | — | Output file path |
+| `--api-key` | String | — | Override API key |
+| `--timeout` | Double | `300` | Max wait in seconds |
+| `--poll-interval` | Double | `3` | Poll frequency in seconds |
+| `--wait` | Flag | — | Block until complete |
+| `--stream` | Flag | — | Stream NDJSON progress events |
+| `--skip-download` | Flag | — | Skip auto-download on completion |
+| `--retry` | Int | `0` | Max retries on failure |
+| `--dry-run` | Flag | — | Validate without submitting |
+| `--pretty` | Flag | — | Pretty-print JSON |
 
 ```sh
-# Submit and stream progress events
-openflix generate "ocean sunrise timelapse" \
-  --provider runway \
-  --model gen4_turbo \
-  --duration 5 \
-  --aspect-ratio 16:9 \
-  --stream
-
 # Image-to-video with extra provider params
 openflix generate "character walks forward" \
-  --provider fal \
-  --model fal-ai/kling-video/v2/master/text-to-video \
-  --image ./reference.jpg \
-  --param seed=42 \
-  --wait \
-  --output ~/Videos/shot.mp4
+    --provider fal \
+    --model fal-ai/kling-video/v2/master/text-to-video \
+    --image ./reference.jpg \
+    --param seed=42 \
+    --wait -o ~/Videos/shot.mp4
 
 # Dry run to verify key and get cost estimate
 openflix generate "sunset over mountains" \
-  --provider luma \
-  --model ray-3 \
-  --duration 8 \
-  --dry-run
+    --provider luma --model ray-3 --duration 8 --dry-run
 ```
 
 ### `status`
 
 Poll the current status of a generation.
 
-| Flag / Option | Type | Description |
-|---|---|---|
-| `<id>` | argument | Generation ID |
-| `--wait` | flag | Block until generation completes |
-| `--stream` | flag | Emit newline-delimited JSON progress events |
-| `--timeout` | double | Max seconds to wait (default: 300) |
-| `--poll-interval` | double | Poll interval in seconds (default: 3) |
-| `-o` / `--output` | string | Output file path for the downloaded video |
-| `--api-key` | string | API key override |
-| `--skip-download` | flag | Do not download after completion |
-| `--cached` | flag | Return cached status without hitting the provider API |
-| `--pretty` | flag | Pretty-print JSON output |
+```sh
+openflix status abc123 --wait --stream
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `<id>` | String | required | Generation ID |
+| `--wait` | Flag | — | Block until complete |
+| `--stream` | Flag | — | Stream progress events |
+| `--cached` | Flag | — | Return local cache without polling |
+| `-o, --output` | String | — | Output file path |
+| `--skip-download` | Flag | — | Skip auto-download |
+| `--api-key` | String | — | Override API key |
+| `--timeout` | Double | `300` | Max wait in seconds |
+| `--poll-interval` | Double | `3` | Poll frequency |
+| `--pretty` | Flag | — | Pretty-print JSON |
+
+### `list`
+
+```sh
+openflix list --status succeeded --provider fal --limit 10
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--status` | String | — | Filter: `queued`, `submitted`, `processing`, `succeeded`, `failed`, `cancelled` |
+| `--provider` | String | — | Filter by provider ID |
+| `--search` | String | — | Filter by prompt substring |
+| `--limit` | Int | `50` | Max results |
+| `--oldest` | Flag | — | Sort oldest first |
+| `--pretty` | Flag | — | Pretty-print JSON |
 
 ### `download`
 
 Download the video for a completed generation.
 
-| Flag / Option | Type | Description |
-|---|---|---|
-| `<id>` | argument | Generation ID |
-| `-o` / `--output` | string | Output file path (default: `~/.vortex/downloads/<id>.mp4`) |
-| `--wait` | flag | Block until generation completes before downloading |
-| `--timeout` | double | Max seconds to wait (default: 300) |
-| `--poll-interval` | double | Poll interval in seconds (default: 3) |
-| `--api-key` | string | API key override |
-| `--pretty` | flag | Pretty-print JSON output |
-
-### `list`
-
-List generation history from `~/.vortex/store.json`.
-
-| Flag / Option | Type | Description |
-|---|---|---|
-| `--status` | string | Filter: `queued`, `submitted`, `processing`, `succeeded`, `failed`, `cancelled` |
-| `--provider` | string | Filter by provider ID |
-| `--search` | string | Filter by prompt substring |
-| `--limit` | int | Max results (default: 50) |
-| `--oldest` | flag | Sort ascending (oldest first) |
-| `--pretty` | flag | Pretty-print JSON output |
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `<id>` | String | required | Generation ID |
+| `-o, --output` | String | `~/.vortex/downloads/<id>.mp4` | Output file path |
+| `--wait` | Flag | — | Block until generation completes before downloading |
+| `--api-key` | String | — | Override API key |
+| `--timeout` | Double | `300` | Max wait in seconds |
+| `--poll-interval` | Double | `3` | Poll frequency |
+| `--pretty` | Flag | — | Pretty-print JSON |
 
 ### `cancel`
 
-Cancel a queued, submitted, or processing generation. Sends a best-effort cancel to the remote provider.
+Cancel a queued, submitted, or processing generation. Best-effort remote cancel.
 
-| Flag / Option | Type | Description |
-|---|---|---|
-| `<id>` | argument | Generation ID |
-| `--api-key` | string | API key override |
-| `--pretty` | flag | Pretty-print JSON output |
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `<id>` | String | required | Generation ID |
+| `--api-key` | String | — | Override API key |
+| `--pretty` | Flag | — | Pretty-print JSON |
 
 ### `retry`
 
-Resubmit a failed or cancelled generation with the same parameters. The original generation is kept; a new one is created with a `retried_from` field.
+Resubmit a failed or cancelled generation with the same parameters. The original is kept; a new generation is created with a `retried_from` field.
 
-| Flag / Option | Type | Description |
-|---|---|---|
-| `<id>` | argument | Generation ID |
-| `--wait` | flag | Block until the retried generation completes |
-| `--stream` | flag | Stream progress events |
-| `--skip-download` | flag | Do not download after completion |
-| `--timeout` | double | Max seconds to wait (default: 300) |
-| `--poll-interval` | double | Poll interval in seconds (default: 3) |
-| `--api-key` | string | API key override |
-| `--pretty` | flag | Pretty-print JSON output |
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `<id>` | String | required | Generation ID |
+| `--wait` | Flag | — | Block until retried generation completes |
+| `--stream` | Flag | — | Stream progress events |
+| `--skip-download` | Flag | — | Skip auto-download |
+| `--api-key` | String | — | Override API key |
+| `--timeout` | Double | `300` | Max wait in seconds |
+| `--poll-interval` | Double | `3` | Poll frequency |
+| `--pretty` | Flag | — | Pretty-print JSON |
 
 ### `delete`
 
 Remove a generation record from local history. Does not cancel remote jobs or delete downloaded files.
 
-| Flag / Option | Type | Description |
-|---|---|---|
-| `<id>` | argument | Generation ID |
-| `--pretty` | flag | Pretty-print JSON output |
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `<id>` | String | required | Generation ID |
+| `--pretty` | Flag | — | Pretty-print JSON |
 
 ### `purge`
 
-Bulk-remove generations matching filter criteria. At least one of `--older-than` or `--status` is required.
-
-| Flag / Option | Type | Description |
-|---|---|---|
-| `--older-than` | int | Purge generations older than N days |
-| `--status` | string | Purge generations with this status |
-| `--delete-files` | flag | Also delete downloaded video files from disk |
-| `--pretty` | flag | Pretty-print JSON output |
+Bulk-remove generations. At least one of `--older-than` or `--status` is required.
 
 ```sh
 openflix purge --status failed --delete-files
 openflix purge --older-than 30 --status cancelled
 ```
 
-### `cost`
-
-Show actual and estimated cost summary from local history.
-
-| Flag / Option | Type | Description |
-|---|---|---|
-| `--provider` | string | Filter by provider ID |
-| `--since` | string | ISO 8601 date (YYYY-MM-DD) — only include generations after this date |
-| `--pretty` | flag | Pretty-print JSON output |
-
-### `keys`
-
-Manage API keys stored in the macOS Keychain. Keys stored here are shared with the OpenFlix GUI application.
-
-| Subcommand | Arguments | Description |
-|---|---|---|
-| `keys set <provider> <key>` | provider ID, key value | Store a key in the Keychain |
-| `keys get <provider>` | provider ID | Retrieve a key (masked by default) |
-| `keys get <provider> --reveal` | | Print the full key value |
-| `keys delete <provider>` | provider ID | Remove a key from the Keychain |
-| `keys list` | | List all providers and whether they have a key stored |
-
-Key resolution order (highest priority first):
-
-1. `--api-key` flag
-2. Environment variable `VORTEX_<PROVIDER>_KEY` (e.g. `VORTEX_FAL_KEY`, `VORTEX_RUNWAY_KEY`)
-3. Generic fallback `VORTEX_API_KEY`
-4. macOS Keychain entry `com.openflix.vortex.<provider>`
-
-### `models`
-
-List models for a provider with capabilities and pricing.
-
-| Flag / Option | Type | Description |
-|---|---|---|
-| `--provider` | string | Provider ID (required) |
-| `--pretty` | flag | Pretty-print JSON output |
-
-```sh
-openflix models --provider fal --pretty
-```
-
-### `providers`
-
-List all registered providers. Subcommands: `list` (default), `models`.
-
-| Flag / Option | Type | Description |
-|---|---|---|
-| `--pretty` | flag | Pretty-print JSON output |
-
-### `health`
-
-Report system health for agent diagnostics: store writability, downloads directory, and API key configuration per provider.
-
-| Flag / Option | Type | Description |
-|---|---|---|
-| `--pretty` | flag | Pretty-print JSON output |
-
-Returns `{ "healthy": true/false, "store_writable": ..., "downloads_writable": ..., "generation_count": ..., "providers": [...], "all_providers_configured": ... }`.
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--older-than` | Int | — | Purge generations older than N days |
+| `--status` | String | — | Purge generations with this status |
+| `--delete-files` | Flag | — | Also delete downloaded video files |
+| `--pretty` | Flag | — | Pretty-print JSON |
 
 ### `batch`
 
-Submit multiple generations in parallel from a JSON array.
-
-| Flag / Option | Type | Description |
-|---|---|---|
-| `--file` | string | Path to JSON file (reads from stdin if omitted) |
-| `--concurrency` | int | Max parallel generations (default: 4) |
-| `--wait` | flag | Block until all generations complete |
-| `--stream` | flag | Stream progress events |
-| `--skip-download` | flag | Do not download videos after generation |
-| `--timeout` | double | Max seconds per generation (default: 600) |
-| `--retry` | int | Max retries per generation on failure (default: 1) |
-| `--api-key` | string | API key override |
-| `--pretty` | flag | Pretty-print JSON output |
-
-Input format:
-
-```json
-[
-  {"prompt": "cat on moon", "provider": "fal", "model": "fal-ai/veo3", "tag": "shot1"},
-  {"prompt": "neon city rain", "provider": "runway", "model": "gen4_turbo", "tag": "shot2"}
-]
-```
-
-Supported fields per item: `prompt`, `provider`, `model`, `negative_prompt`, `duration`, `aspect_ratio`, `width`, `height`, `image`, `extra_params`, `tag`.
+Submit multiple generations in parallel from a JSON file or stdin.
 
 ```sh
 openflix batch --file shots.json --wait --concurrency 4
 cat shots.json | openflix batch --wait
 ```
 
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--file` | String | stdin | JSON file path |
+| `--concurrency` | Int | `4` | Max parallel generations |
+| `--wait` | Flag | — | Block until all complete |
+| `--stream` | Flag | — | Stream progress events |
+| `--retry` | Int | `1` | Max retries per generation |
+| `--skip-download` | Flag | — | Skip auto-download |
+| `--api-key` | String | — | Override API key |
+| `--timeout` | Double | `600` | Max wait per generation |
+| `--pretty` | Flag | — | Pretty-print JSON |
+
+Input format:
+
+```json
+[
+  {"prompt": "cat on moon", "provider": "fal", "model": "fal-ai/veo3", "tag": "shot1"},
+  {"prompt": "neon city rain", "provider": "runway", "model": "gen4_turbo", "duration": 10, "tag": "shot2"}
+]
+```
+
+Supported fields: `prompt`, `provider`, `model`, `negative_prompt`, `duration`, `aspect_ratio`, `width`, `height`, `image`, `extra_params`, `tag`.
+
+### `cost`
+
+```sh
+openflix cost --provider fal --since 2025-01-01
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--provider` | String | — | Filter by provider |
+| `--since` | String | — | ISO 8601 date (`YYYY-MM-DD`) |
+| `--pretty` | Flag | — | Pretty-print JSON |
+
+### `keys`
+
+Manage API keys in the macOS Keychain. Keys are shared with the OpenFlix GUI app under service prefix `com.openflix.vortex.*`.
+
+```sh
+openflix keys set fal YOUR_KEY       # Store
+openflix keys get fal                # Retrieve (masked)
+openflix keys get fal --reveal       # Retrieve (full value)
+openflix keys delete fal             # Remove
+openflix keys list                   # Show all providers
+```
+
+**Key resolution order** (highest priority first):
+
+1. `--api-key` flag
+2. Environment variable `VORTEX_{PROVIDER}_KEY` (e.g. `VORTEX_FAL_KEY`)
+3. Generic fallback `VORTEX_API_KEY`
+4. macOS Keychain (`com.openflix.vortex.{provider}`)
+
+### `models`
+
+```sh
+openflix models --provider fal --pretty
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--provider` | String | required | Provider ID |
+| `--pretty` | Flag | — | Pretty-print JSON |
+
+### `providers`
+
+List all registered providers with model counts.
+
+### `health`
+
+System diagnostics: store writability, downloads directory, API key configuration per provider.
+
+```sh
+openflix health --pretty
+```
+
 ### `evaluate`
 
-Run quality evaluation on a downloaded video. The generation must be in `succeeded` status with a local file.
+Run quality evaluation on a completed generation's video file.
 
-| Flag / Option | Type | Description |
-|---|---|---|
-| `<generation-id>` | argument | Generation ID |
-| `--evaluator` | string | `heuristic` (default) or `llm-vision` |
-| `--threshold` | double | Quality threshold 0-100 (default: 60) |
-| `--claude-api-key` | string | Anthropic API key for `llm-vision` evaluator |
-| `--claude-model` | string | Claude model to use for vision evaluation |
-| `--max-frames` | int | Max frames to extract for LLM evaluation (default: 4) |
-| `--pretty` | flag | Pretty-print JSON output |
+```sh
+# Heuristic (file size, resolution, codec — no API calls)
+openflix evaluate abc123
+
+# LLM vision (Claude analyzes extracted frames)
+openflix evaluate abc123 --evaluator llm-vision --claude-api-key sk-...
+```
+
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `<generation-id>` | String | required | Generation ID |
+| `--evaluator` | String | `heuristic` | `heuristic` or `llm-vision` |
+| `--threshold` | Double | `60` | Quality threshold (0-100) |
+| `--claude-api-key` | String | — | API key for `llm-vision` evaluator |
+| `--claude-model` | String | `claude-sonnet-4-20250514` | Claude model |
+| `--max-frames` | Int | `4` | Frames to extract for vision eval |
+| `--pretty` | Flag | — | Pretty-print JSON |
 
 ### `feedback`
 
-Record a quality score for a generation. Scores feed the provider metrics system used by the `quality` routing strategy.
-
-| Flag / Option | Type | Description |
-|---|---|---|
-| `<generation-id>` | argument | Generation ID |
-| `--score` | double | Quality score 0-100 (required) |
-| `--reason` | string | Optional textual explanation |
-| `--pretty` | flag | Pretty-print JSON output |
+Record a quality score for a generation. Feeds the provider metrics system used by the `quality` routing strategy.
 
 ```sh
 openflix feedback abc123 --score 85 --reason "Great motion, accurate subject"
 ```
 
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `<generation-id>` | String | required | Generation ID |
+| `--score` | Double | required | Quality score (0-100) |
+| `--reason` | String | — | Optional explanation |
+| `--pretty` | Flag | — | Pretty-print JSON |
+
 ### `metrics`
 
-Show aggregated provider performance metrics.
+```sh
+openflix metrics --provider fal --sort quality --pretty
+```
 
-| Flag / Option | Type | Description |
-|---|---|---|
-| `--provider` | string | Filter by provider ID |
-| `--sort` | string | `quality` (default), `latency`, `cost`, `success_rate` |
-| `--pretty` | flag | Pretty-print JSON output |
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--provider` | String | — | Filter by provider |
+| `--sort` | String | `quality` | Sort by: `quality`, `latency`, `cost`, `success_rate` |
+| `--pretty` | Flag | — | Pretty-print JSON |
 
 ### `budget`
 
-Manage cost limits for autonomous agent use. Subcommands: `status` (default), `set`, `reset`.
-
-**`budget status`**
-
-| Flag / Option | Type | Description |
-|---|---|---|
-| `--pretty` | flag | Pretty-print JSON output |
-
-**`budget set`**
-
-| Flag / Option | Type | Description |
-|---|---|---|
-| `--daily-limit` | double | Daily spend limit in USD |
-| `--per-generation-max` | double | Max cost per individual generation in USD |
-| `--monthly-limit` | double | Monthly spend limit in USD |
-| `--warning-threshold` | double | Warning threshold percentage (0-100, default: 80) |
-| `--pretty` | flag | Pretty-print JSON output |
-
-**`budget reset`**
-
-Resets the daily spend counter to zero.
+Manage cost limits. Subcommands: `status` (default), `set`, `reset`.
 
 ```sh
-openflix budget set --daily-limit 5.00 --per-generation-max 1.00
+openflix budget set --daily-limit 10 --per-generation-max 2 --monthly-limit 100
 openflix budget status --pretty
 openflix budget reset
 ```
 
-### `project`
+**`budget set`** options:
 
-Manage multi-shot video generation projects. Subcommands: `create`, `run`, `status`, `list`, `delete`, `shot`, `export`.
-
-**`project create`**
-
-| Flag / Option | Type | Description |
-|---|---|---|
-| `--file` | string | JSON spec file path (reads from stdin if omitted) |
-| `--pretty` | flag | Pretty-print JSON output |
-
-**`project run`**
-
-| Flag / Option | Type | Description |
-|---|---|---|
-| `<project-id>` | argument | Project ID |
-| `--concurrency` | int | Max parallel shots (default: project setting, typically 4) |
-| `--stream` | flag | Stream newline-delimited JSON progress events |
-| `--resume` | flag | Reset stale dispatched/processing/failed shots to pending before running |
-| `--skip-download` | flag | Do not download videos after generation |
-| `--api-key` | string | API key override |
-| `--evaluate` | flag | Enable quality evaluation after each generation |
-| `--quality-threshold` | double | Quality threshold 0-100 (implies `--evaluate`) |
-| `--evaluator` | string | Evaluator type: `heuristic` or `llm-vision` |
-| `--pretty` | flag | Pretty-print JSON output |
-
-**`project status`**
-
-| Flag / Option | Type | Description |
-|---|---|---|
-| `<project-id>` | argument | Project ID |
-| `--detail` | flag | Include per-shot status in output |
-| `--pretty` | flag | Pretty-print JSON output |
-
-**`project list`**
-
-| Flag / Option | Type | Description |
-|---|---|---|
-| `--status` | string | Filter by status: `draft`, `running`, `paused`, `succeeded`, `partialFailure`, `failed`, `cancelled` |
-| `--pretty` | flag | Pretty-print JSON output |
-
-**`project delete`**
-
-| Flag / Option | Type | Description |
-|---|---|---|
-| `<project-id>` | argument | Project ID |
-| `--delete-generations` | flag | Also remove associated generations from the generation store |
-| `--pretty` | flag | Pretty-print JSON output |
-
-**`project shot`**
-
-Manage individual shots within a project. Subcommands: `add`, `retry`, `skip`, `update`, `remove`.
-
-| Subcommand | Key Options | Description |
-|---|---|---|
-| `shot add <project-id> <scene-id>` | `--name`, `--prompt`, `--provider`, `--model`, `--duration`, `--aspect-ratio`, `--dependencies` (comma-separated IDs) | Add a shot to a scene |
-| `shot retry <project-id> <shot-id>` | | Reset a failed/cancelled shot to pending |
-| `shot skip <project-id> <shot-id>` | | Mark a shot as skipped |
-| `shot update <project-id> <shot-id>` | `--prompt`, `--provider`, `--model`, `--generation-id`, `--status` | Update shot properties |
-| `shot remove <project-id> <shot-id>` | | Remove a shot from the project |
-
-**`project export`**
-
-| Flag / Option | Type | Description |
-|---|---|---|
-| `<project-id>` | argument | Project ID |
-| `--output` | string | Output directory for manifest files |
-| `--manifest` | flag | Generate an ffmpeg concat demuxer file |
-| `--pretty` | flag | Pretty-print JSON output |
-
-```sh
-openflix project export <project-id> --manifest --output ./export
-# Then stitch the clips together:
-ffmpeg -f concat -safe 0 -i ./export/concat.txt -c copy final.mp4
-```
-
-### `daemon`
-
-Manage the background daemon that exposes a Unix socket for persistent agent connections. Subcommands: `start`, `stop`, `status`.
-
-| Subcommand | Options | Description |
-|---|---|---|
-| `daemon start` | `--foreground` | Start the daemon |
-| `daemon stop` | | Send SIGTERM and clean up socket/PID files |
-| `daemon status` | | Report whether the daemon is running and its PID |
-
-For background operation:
-
-```sh
-nohup openflix daemon start --foreground &
-openflix daemon status
-openflix daemon stop
-```
-
-Socket: `~/.vortex/daemon.sock` — PID file: `~/.vortex/daemon.pid`
-
-### `mcp`
-
-Start OpenFlix as an MCP server communicating via stdin/stdout using JSON-RPC 2.0. No flags. See [MCP Server](#mcp-server).
-
-```sh
-openflix mcp
-```
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `--daily-limit` | Double | — | Daily spend limit in USD |
+| `--per-generation-max` | Double | — | Max cost per generation in USD |
+| `--monthly-limit` | Double | — | Monthly spend limit in USD |
+| `--warning-threshold` | Double | `80` | Warning threshold percentage (0-100) |
+| `--pretty` | Flag | — | Pretty-print JSON |
 
 ---
 
-## Providers and Models
+## Providers & Models
 
-API keys are resolved from `--api-key` flag > environment variable > Keychain. The environment variable name is `VORTEX_<PROVIDER>_KEY` (e.g. `VORTEX_FAL_KEY`, `VORTEX_RUNWAY_KEY`).
+Six providers, 24 models. Each provider requires its own API key.
 
 ### fal.ai (`fal`)
 
-| Model ID | Display Name | Default Resolution | Max Duration | Cost/s | I2V |
-|---|---|---|---|---|---|
-| `fal-ai/veo3` | Veo 3 | 1280x720 | 8s | $0.15 | no |
-| `fal-ai/bytedance/seedance/v2/text-to-video` | Seedance 2.0 | 1920x1080 | 15s | $0.05 | no |
-| `fal-ai/bytedance/seedance/v2/image-to-video` | Seedance 2.0 I2V | 1920x1080 | 15s | $0.06 | yes |
-| `fal-ai/kling-video/v2/master/text-to-video` | Kling v2 Master | 1280x720 | 10s | $0.06 | yes |
-| `fal-ai/minimax/hailuo-02` | Hailuo 02 | 1280x720 | 6s | $0.05 | no |
-| `fal-ai/luma-dream-machine` | Luma Dream Machine | 1280x720 | 5s | $0.08 | no |
-| `fal-ai/hunyuan-video` | Hunyuan Video | 1280x720 | 5s | $0.04 | no |
-| `fal-ai/wan/v2.1/1080p` | Wan 2.1 1080p | 1920x1080 | 5s | $0.03 | no |
+| Model ID | Name | Resolution | Max Duration | $/sec | I2V |
+|----------|------|------------|--------------|-------|-----|
+| `fal-ai/veo3` | Veo 3 | 1280x720 | 8s | 0.15 | |
+| `fal-ai/bytedance/seedance/v2/text-to-video` | Seedance 2.0 | 1920x1080 | 15s | 0.05 | |
+| `fal-ai/bytedance/seedance/v2/image-to-video` | Seedance 2.0 I2V | 1920x1080 | 15s | 0.06 | Yes |
+| `fal-ai/kling-video/v2/master/text-to-video` | Kling v2 Master | 1280x720 | 10s | 0.06 | Yes |
+| `fal-ai/minimax/hailuo-02` | Hailuo 02 | 1280x720 | 6s | 0.05 | |
+| `fal-ai/luma-dream-machine` | Luma Dream Machine | 1280x720 | 5s | 0.08 | |
+| `fal-ai/hunyuan-video` | Hunyuan Video | 1280x720 | 5s | 0.04 | |
+| `fal-ai/wan/v2.1/1080p` | Wan 2.1 1080p | 1920x1080 | 5s | 0.03 | |
 
 ### Replicate (`replicate`)
 
-| Model ID | Display Name | Default Resolution | Max Duration | Cost/s | I2V |
-|---|---|---|---|---|---|
-| `minimax/video-01-live` | MiniMax Video-01 Live | 1280x720 | 6s | $0.05 | no |
-| `tencent/hunyuan-video` | Hunyuan Video | 1280x720 | 5s | $0.04 | no |
-| `wavespeed-ai/wan-2.1` | Wan 2.1 | 1280x720 | 5s | $0.03 | no |
-| `kwaai/kling-v1.6-pro` | Kling v1.6 Pro | 1280x720 | 10s | $0.10 | yes |
+| Model ID | Name | Resolution | Max Duration | $/sec | I2V |
+|----------|------|------------|--------------|-------|-----|
+| `minimax/video-01-live` | MiniMax Video-01 Live | 1280x720 | 6s | 0.05 | |
+| `tencent/hunyuan-video` | Hunyuan Video | 1280x720 | 5s | 0.04 | |
+| `wavespeed-ai/wan-2.1` | Wan 2.1 | 1280x720 | 5s | 0.03 | |
+| `kwaai/kling-v1.6-pro` | Kling v1.6 Pro | 1280x720 | 10s | 0.10 | Yes |
 
 ### Runway (`runway`)
 
-| Model ID | Display Name | Default Resolution | Max Duration | Cost/s | I2V |
-|---|---|---|---|---|---|
-| `gen4_turbo` | Gen-4 Turbo | 1280x720 | 10s | $0.05 | yes |
-| `gen4.5` | Gen-4.5 | 1280x720 | 10s | $0.10 | yes |
+| Model ID | Name | Resolution | Max Duration | $/sec | I2V |
+|----------|------|------------|--------------|-------|-----|
+| `gen4_turbo` | Gen-4 Turbo | 1280x720 | 10s | 0.05 | Yes |
+| `gen4.5` | Gen-4.5 | 1280x720 | 10s | 0.10 | Yes |
 
 ### Luma (`luma`)
 
-| Model ID | Display Name | Default Resolution | Max Duration | Cost/s | I2V |
-|---|---|---|---|---|---|
-| `ray-2` | Ray 2 | 1280x720 | 5s | $0.10 | yes |
-| `ray-flash-2` | Ray Flash 2 | 1280x720 | 5s | $0.05 | yes |
-| `ray-3` | Ray 3 | 1280x720 | 10s | $0.20 | yes |
+| Model ID | Name | Resolution | Max Duration | $/sec | I2V |
+|----------|------|------------|--------------|-------|-----|
+| `ray-2` | Ray 2 | 1280x720 | 5s | 0.10 | Yes |
+| `ray-flash-2` | Ray Flash 2 | 1280x720 | 5s | 0.05 | Yes |
+| `ray-3` | Ray 3 | 1280x720 | 10s | 0.20 | Yes |
 
 ### Kling (`kling`)
 
-| Model ID | Display Name | Default Resolution | Max Duration | Cost/s | I2V |
-|---|---|---|---|---|---|
-| `kling-v2.6-pro` | Kling v2.6 Pro | 1280x720 | 10s | $0.10 | yes |
-| `kling-v2.6-std` | Kling v2.6 Standard | 1280x720 | 10s | $0.05 | yes |
-| `kling-v2.5-turbo` | Kling v2.5 Turbo | 1280x720 | 5s | $0.03 | yes |
+| Model ID | Name | Resolution | Max Duration | $/sec | I2V |
+|----------|------|------------|--------------|-------|-----|
+| `kling-v2.6-pro` | Kling v2.6 Pro | 1280x720 | 10s | 0.10 | Yes |
+| `kling-v2.6-std` | Kling v2.6 Standard | 1280x720 | 10s | 0.05 | Yes |
+| `kling-v2.5-turbo` | Kling v2.5 Turbo | 1280x720 | 5s | 0.03 | Yes |
 
 ### MiniMax (`minimax`)
 
-| Model ID | Display Name | Default Resolution | Max Duration | Cost/s | I2V |
-|---|---|---|---|---|---|
-| `MiniMax-Hailuo-2.3` | Hailuo 2.3 | 1280x720 | 10s | $0.05 | no |
-| `T2V-01-Director` | T2V-01 Director | 1280x720 | 6s | $0.04 | no |
-| `S2V-01` | S2V-01 (I2V) | 1280x720 | 6s | $0.05 | yes |
+| Model ID | Name | Resolution | Max Duration | $/sec | I2V |
+|----------|------|------------|--------------|-------|-----|
+| `MiniMax-Hailuo-2.3` | Hailuo 2.3 | 1280x720 | 10s | 0.05 | |
+| `T2V-01-Director` | T2V-01 Director | 1280x720 | 6s | 0.04 | |
+| `S2V-01` | S2V-01 (I2V) | 1280x720 | 6s | 0.05 | Yes |
 
-I2V = image-to-video support. Cost figures are estimates used for budget pre-flight checks and local cost tracking; actual provider billing may differ.
+Cost figures are estimates used for budget pre-flight checks. Actual provider billing may differ.
 
 ---
 
-## Budget and Safety
+## Budget & Safety
 
-### Budget Guardrails
+### Budget guardrails
 
-`BudgetManager` is a Swift actor that enforces cost limits before any API call is made. Limits are stored at `~/.vortex/budget_config.json` and daily spend at `~/.vortex/daily_spend.json`.
-
-Three limit tiers:
-
-- **Per-generation max:** if the estimated cost of a single request exceeds this value, the generation is rejected immediately with a `budget_exceeded` error.
-- **Daily limit:** if adding the estimated cost to today's recorded spend would exceed this value, the generation is rejected.
-- **Monthly limit:** same logic applied to the accumulated monthly spend.
-
-A warning is emitted (but the generation proceeds) when projected daily spend exceeds `warning_threshold_percent` of the daily limit (default: 80%).
-
-When a generation completes successfully, its actual cost is recorded to the daily spend counter.
+Set per-generation, daily, and monthly cost caps. Every `generate` command runs a pre-flight budget check — if the estimated cost would exceed any limit, the generation is rejected with `BUDGET_EXCEEDED` before any API call.
 
 ```sh
-openflix budget set --daily-limit 10.00 --per-generation-max 2.00 --warning-threshold 75
+openflix budget set --daily-limit 10 --per-generation-max 2 --monthly-limit 100
 openflix budget status --pretty
 ```
 
-### Prompt Safety
+A warning is emitted (generation still proceeds) when projected daily spend exceeds `warning_threshold` (default: 80%) of the daily limit.
 
-`PromptSafetyChecker` runs locally before every generation — no API call required. It classifies prompts into three levels:
+Budget config: `~/.vortex/budget_config.json`. Daily spend: `~/.vortex/daily_spend.json`.
+
+### Prompt safety
+
+`PromptSafetyChecker` runs locally before every generation. No external API calls.
 
 | Level | Action | Categories |
-|---|---|---|
-| `blocked` | Generation rejected, `promptBlocked` error returned | `csam`, `extreme_violence`, `pii_generation`, `malware` |
-| `warning` | Generation proceeds, flags noted | `violence`, `suggestive`, `deceptive` |
-| `safe` | No action | — |
+|-------|--------|------------|
+| **Blocked** | Generation rejected | CSAM, extreme violence, PII generation, malware |
+| **Warning** | Generation proceeds with flag | Violence, suggestive, deceptive |
+| **Safe** | No action | Everything else |
 
-The check runs inside `GenerationEngine.submit()` before the budget check and before any network call.
+Blocked prompts return exit code `1` with error code `PROMPT_UNSAFE`.
 
 ---
 
 ## MCP Server
 
-OpenFlix implements the [Model Context Protocol](https://modelcontextprotocol.io) over stdio, making it usable as a native tool server for Claude Code, Claude Desktop, and any MCP-compatible host.
+OpenFlix implements the [Model Context Protocol](https://modelcontextprotocol.io) over stdio, making it a native tool server for Claude Code, Claude Desktop, and any MCP-compatible host.
+
+```sh
+openflix mcp
+```
 
 ### Configuration
 
@@ -623,86 +574,95 @@ Add to `~/.claude.json` or `claude_desktop_config.json`:
 
 ### Tools (14)
 
-| Tool | Required Parameters | Description |
-|---|---|---|
-| `generate` | `prompt`, `provider`, `model` | Submit, poll until complete, and download. Optional: `negative_prompt`, `width`, `height`, `duration_seconds`, `aspect_ratio`, `timeout`, `max_retries`. |
-| `generate_submit` | `prompt`, `provider`, `model` | Submit only, non-blocking. Returns generation ID for later polling. Optional: same generation fields minus `timeout`/`max_retries`. |
-| `generate_poll` | `generation_id` | Poll status of an existing generation. Optional: `wait` (bool), `timeout`. |
-| `list_generations` | — | List generations. Optional: `status`, `provider`, `limit` (default 20), `search`. |
-| `get_generation` | `generation_id` | Get full details for one generation. |
-| `cancel_generation` | `generation_id` | Cancel an active generation. |
-| `retry_generation` | `generation_id` | Retry a failed generation with the same parameters. |
-| `list_providers` | — | List all providers and models with capabilities and pricing. |
-| `evaluate_quality` | `generation_id` | Run quality evaluation. Optional: `evaluator` (`heuristic`/`llm-vision`), `threshold`. |
-| `submit_feedback` | `generation_id`, `score` | Record quality feedback (0-100). Optional: `reason`. |
-| `get_metrics` | — | Get provider metrics. Optional: `provider`, `sort` (`quality`/`latency`/`cost`/`success_rate`). |
-| `budget_status` | — | Get current budget status: daily spend, limits, remaining. |
-| `project_run` | `project_id` | Execute a multi-shot project DAG. Optional: `strategy`, `evaluate`. |
-| `health_check` | — | Check which providers have configured keys. |
+| Tool | Description |
+|------|-------------|
+| `generate` | Submit, poll until complete, download |
+| `generate_submit` | Submit only (non-blocking) |
+| `generate_poll` | Poll status of existing generation |
+| `list_generations` | List generation history |
+| `get_generation` | Get single generation details |
+| `cancel_generation` | Cancel active generation |
+| `retry_generation` | Retry failed generation |
+| `list_providers` | List all providers and models |
+| `evaluate_quality` | Run quality evaluation |
+| `submit_feedback` | Record quality score (0-100) |
+| `get_metrics` | Provider performance metrics |
+| `budget_status` | Current budget info |
+| `project_run` | Execute a project DAG |
+| `health_check` | System diagnostics |
 
 ### Resources (3)
 
-| URI | MIME Type | Description |
-|---|---|---|
-| `vortex://providers` | `application/json` | All providers and models with capabilities and cost-per-second |
-| `vortex://metrics` | `application/json` | Current provider performance metrics |
-| `vortex://budget` | `application/json` | Current budget status and daily spend |
+| URI | Description |
+|-----|-------------|
+| `vortex://providers` | All providers and models with capabilities and pricing |
+| `vortex://metrics` | Provider performance and quality metrics |
+| `vortex://budget` | Current budget status and daily spend |
 
-### Protocol details
-
-- Transport: JSON-RPC 2.0 over stdin/stdout
-- Protocol version: `2024-11-05`
-- Errors from tool calls are returned as `content` with `"isError": true` containing a `StructuredError` JSON object (not as JSON-RPC error responses), so agents can inspect the `code` and `retryable` fields without special error handling.
+**Protocol:** JSON-RPC 2.0 over stdin/stdout. Tool errors return structured payloads with `code` and `retryable` fields as content (not JSON-RPC error responses), so agents can inspect and retry without special error handling.
 
 ---
 
-## Daemon and Project Orchestration
+## Daemon
 
-### Daemon
+The daemon provides a persistent Unix socket server for long-running agent connections.
 
-The daemon (`openflix daemon start --foreground`) binds a Unix domain socket at `~/.vortex/daemon.sock` and accepts JSON-RPC 2.0 messages. It is intended for agents that need a persistent connection rather than spawning a new process per command.
+```sh
+# Start in foreground
+openflix daemon start --foreground
 
-### Projects
+# Or background via nohup
+nohup openflix daemon start --foreground &
 
-A project is a directed acyclic graph (DAG) of shots organized into scenes. Shots declare dependencies on other shots by shot ID; the executor does not dispatch a shot until all its dependencies have succeeded or been skipped.
+# Check status
+openflix daemon status
 
-#### Project spec format
+# Stop
+openflix daemon stop
+```
+
+- **Socket:** `~/.vortex/daemon.sock`
+- **PID file:** `~/.vortex/daemon.pid`
+- **Transport:** Newline-delimited JSON-RPC over Unix domain socket (NWListener)
+
+Agents can `subscribe` to project IDs to receive real-time events as shots progress. Supported methods: `health`, `project.list`, `project.status`, `subscribe`, `unsubscribe`, `evaluate`, `feedback`, `provider.metrics`.
+
+---
+
+## Projects
+
+Projects organize multi-shot video generation into scenes with dependency management, parallel execution, and intelligent provider routing.
+
+### Create
+
+```sh
+openflix project create --file spec.json
+```
 
 ```json
 {
-  "name": "My Short Film",
-  "description": "Optional description",
+  "name": "Product Launch",
   "settings": {
     "default_provider": "fal",
     "default_model": "fal-ai/veo3",
-    "default_aspect_ratio": "16:9",
-    "default_duration": 5,
     "max_concurrency": 4,
-    "max_retries_per_shot": 2,
-    "timeout_per_shot": 600,
-    "routing_strategy": "cheapest",
-    "cost_budget_usd": 20.00,
+    "routing_strategy": "quality",
     "quality_enabled": true,
-    "quality_evaluator": "heuristic",
-    "quality_threshold": 70,
-    "quality_max_retries": 1
+    "quality_threshold": 70
   },
   "scenes": [
     {
       "name": "Opening",
-      "order_index": 0,
       "shots": [
         {
-          "name": "establishing_shot",
-          "prompt": "wide angle view of a city at dawn",
-          "duration": 5,
-          "dependencies": []
+          "name": "wide_establishing",
+          "prompt": "cinematic wide shot of a modern office at dawn",
+          "duration": 5
         },
         {
-          "name": "close_up",
-          "prompt": "close up of a coffee cup steaming",
-          "duration": 3,
-          "dependencies": ["establishing_shot"]
+          "name": "logo_reveal",
+          "prompt": "smooth camera push into glass door with logo",
+          "dependencies": ["wide_establishing"]
         }
       ]
     }
@@ -710,53 +670,74 @@ A project is a directed acyclic graph (DAG) of shots organized into scenes. Shot
 }
 ```
 
-#### Routing strategies
-
-The `routing_strategy` field controls how the executor selects a provider and model for shots that do not specify them explicitly:
-
-| Strategy | Behavior |
-|---|---|
-| `manual` | Each shot must have `provider` and `model` set explicitly. |
-| `cheapest` | Selects the model with the lowest `cost_per_second_usd` that meets the shot's duration and image requirements. |
-| `fastest` | Heuristic: selects the model with the shortest `max_duration_seconds`. |
-| `quality` | Uses recorded metrics (`openflix metrics`) to pick the highest average quality score; falls back to highest cost as a proxy when no metrics exist. |
-| `scatterGather` | Dispatches the shot to N providers simultaneously (controlled by `scatter_count`), then picks the first successful result. With `--evaluate`, picks the highest-quality result. |
-
-#### Quality gate
-
-When `quality_enabled: true` (or `--evaluate` is passed to `project run`), each shot transitions to an `evaluating` state after its generation succeeds. The evaluator scores the video on a 0-100 scale. If the score falls below the threshold and retry budget remains, the shot is reset to `pending` for re-dispatch. If the evaluator itself fails (e.g. ffprobe not available), the shot is accepted — evaluation is advisory, never blocking.
-
-Two evaluators are available:
-
-**`heuristic`** — local, no API calls. Scores on:
-- File exists and is non-empty (20 pts)
-- File size between 50 KB and 2 GB (20 pts)
-- Valid video file extension (10 pts)
-- ffprobe: duration within ±20% of expected (10 pts), resolution ≥ 720p (10 pts), video codec present (10 pts)
-- Generation succeeded without errors (20 pts)
-
-Degrades gracefully with partial credit when ffprobe is not installed.
-
-**`llm-vision`** — extracts up to N frames from the video and sends them to the Claude API alongside the original prompt for contextual scoring. Requires `--claude-api-key`.
-
-#### Project lifecycle
+### Run
 
 ```sh
-# Create from spec
-openflix project create --file spec.json
+# Execute with streaming progress
+openflix project run PROJECT_ID --stream
 
-# Run with streaming and quality evaluation
-openflix project run <project-id> --stream --evaluate --quality-threshold 70
+# With quality evaluation
+openflix project run PROJECT_ID --evaluate --quality-threshold 70
 
-# Check detailed per-shot progress
-openflix project status <project-id> --detail --pretty
+# Resume after partial failure
+openflix project run PROJECT_ID --resume
+```
 
-# Resume after interruption (resets stale dispatched shots and failed shots to pending)
-openflix project run <project-id> --resume
+| Flag | Type | Default | Description |
+|------|------|---------|-------------|
+| `<project-id>` | String | required | Project ID |
+| `--concurrency` | Int | `4` | Max parallel shots |
+| `--stream` | Flag | — | Stream progress events |
+| `--resume` | Flag | — | Reset stale/failed shots to pending |
+| `--skip-download` | Flag | — | Skip auto-download |
+| `--evaluate` | Flag | — | Enable quality evaluation |
+| `--quality-threshold` | Double | — | Quality threshold 0-100 (implies `--evaluate`) |
+| `--evaluator` | String | — | `heuristic` or `llm-vision` |
+| `--api-key` | String | — | Override API key |
+| `--pretty` | Flag | — | Pretty-print JSON |
 
-# Export for video editing
-openflix project export <project-id> --manifest --output ./export
+### Routing strategies
+
+| Strategy | Behavior |
+|----------|----------|
+| `manual` | Use provider/model specified on each shot |
+| `cheapest` | Lowest cost per second among available models |
+| `fastest` | Shortest max duration (heuristic proxy for speed) |
+| `quality` | Highest quality score from metrics history; falls back to cost as proxy |
+| `scatterGather` | Submit to N providers in parallel, keep the best result |
+
+### Quality gate
+
+When quality evaluation is enabled, each shot enters an `evaluating` state after generation succeeds. Two evaluators:
+
+**`heuristic`** — local, no API calls. Scores on file existence (20pts), file size 50KB-2GB (20pts), valid extension (10pts), ffprobe duration/resolution/codec (30pts), clean generation (20pts). Degrades gracefully when ffprobe is unavailable.
+
+**`llm-vision`** — extracts frames from the video and sends them to the Claude API with the original prompt for contextual scoring across 5 dimensions: prompt adherence, visual quality, temporal coherence, composition, technical quality.
+
+If a shot scores below threshold and retry budget remains, it is reset to `pending` for re-dispatch. Evaluation is advisory — if the evaluator fails, the shot is accepted.
+
+### DAG execution
+
+Shots declare dependencies by name. The executor resolves them into parallel waves via topological sort (Kahn's algorithm), dispatching up to `max_concurrency` shots simultaneously. Failed shots retry up to `max_retries_per_shot` times with exponential backoff.
+
+### Export
+
+```sh
+openflix project export PROJECT_ID --manifest --output ./export
 ffmpeg -f concat -safe 0 -i ./export/concat.txt -c copy final.mp4
+```
+
+### Other project commands
+
+```sh
+openflix project status PROJECT_ID --detail --pretty
+openflix project list --status succeeded
+openflix project delete PROJECT_ID --delete-generations
+openflix project shot add PROJECT_ID SCENE_ID --name shot_3 --prompt "..."
+openflix project shot retry PROJECT_ID SHOT_ID
+openflix project shot skip PROJECT_ID SHOT_ID
+openflix project shot update PROJECT_ID SHOT_ID --prompt "new prompt"
+openflix project shot remove PROJECT_ID SHOT_ID
 ```
 
 ---
@@ -765,143 +746,155 @@ ffmpeg -f concat -safe 0 -i ./export/concat.txt -c copy final.mp4
 
 ```
 openflix
-├── VortexCLI.swift              @main entry point
-├── Commands/                    One file per command (ArgumentParser subcommands)
-├── Providers/                   One file per provider
+├── VortexCLI.swift              @main — ArgumentParser entry point
+├── Commands/                    One file per command
+├── Providers/
 │   ├── ProviderProtocol.swift   VideoProvider protocol + ProviderRegistry
-│   ├── FalClient.swift
-│   ├── ReplicateClient.swift
-│   ├── RunwayClient.swift
-│   ├── LumaClient.swift
-│   ├── KlingClient.swift
-│   └── MiniMaxClient.swift
+│   ├── FalClient.swift          fal.ai queue API
+│   ├── ReplicateClient.swift    Replicate predictions API
+│   ├── RunwayClient.swift       Runway v1 API
+│   ├── LumaClient.swift         Luma Dream Machine API
+│   ├── KlingClient.swift        Kling API
+│   └── MiniMaxClient.swift      MiniMax 3-step API (submit → query → retrieve)
 ├── Core/
-│   ├── Models.swift             CLIGeneration, CLIProviderModel, VortexError, ErrorCode, StructuredError
-│   ├── GenerationEngine.swift   submit(), submitAndWait(), waitForCompletion() — poll loop with retry/backoff
-│   ├── GenerationStore.swift    ~/.vortex/store.json — flock + NSLock for thread/process safety
-│   ├── VideoDownloader.swift    URLSession download to ~/.vortex/downloads/<id>.mp4
-│   ├── CLIKeychain.swift        Keychain read/write, three-tier key resolution
-│   ├── ProviderRouter.swift     5 routing strategies, scatter targets selection
-│   ├── DAGExecutor.swift        Actor — Kahn's topological sort + TaskGroup parallel dispatch
+│   ├── Models.swift             CLIGeneration, VortexError, ErrorCode, StructuredError
+│   ├── GenerationEngine.swift   Submit → poll → download loop with retry/backoff
+│   ├── GenerationStore.swift    ~/.vortex/store.json (flock + NSLock)
+│   ├── CLIKeychain.swift        macOS Keychain — 4-tier key resolution
+│   ├── BudgetManager.swift      Swift actor — daily/monthly/per-gen cost limits
+│   ├── PromptSafetyChecker.swift  Local heuristic prompt screening
+│   ├── ProviderRouter.swift     5 routing strategies + scatter target selection
+│   ├── DAGExecutor.swift        Swift actor — topological sort + TaskGroup dispatch
 │   ├── ScatterGather.swift      Multi-provider parallel dispatch, best-result selection
-│   ├── ProjectModels.swift      Project, Scene, Shot, ProjectSpec data structures
-│   ├── ProjectStore.swift       ~/.vortex/projects/<id>/project.json — per-project flock
-│   ├── EvaluatorProtocol.swift  VideoEvaluator protocol, EvaluationResult, QualityConfig
-│   ├── HeuristicEvaluator.swift File + ffprobe based scoring
-│   ├── LLMVisionEvaluator.swift Claude API vision scoring
-│   ├── QualityGate.swift        evaluate() + check() orchestration (advisory, never blocking)
-│   ├── ProviderMetricsStore.swift ~/.vortex/metrics.json — running averages per provider+model
-│   ├── BudgetManager.swift      Actor — daily/per-gen/monthly limits, spend tracking
-│   ├── PromptSafetyChecker.swift Local heuristic — blocked/warning/safe classification
-│   ├── MCPServer.swift          JSON-RPC 2.0 over stdio, tool dispatch
-│   ├── MCPToolRegistry.swift    Tool and resource definitions
-│   ├── MCPProtocol.swift        MCPRequest, MCPResponse, AnyCodableValue types
+│   ├── QualityGate.swift        Evaluation orchestration (advisory, never blocking)
+│   ├── HeuristicEvaluator.swift File + ffprobe scoring (100-point scale)
+│   ├── LLMVisionEvaluator.swift Claude API multi-frame vision scoring
+│   ├── ProviderMetricsStore.swift  Running averages per provider+model
+│   ├── ProjectModels.swift      Project, Scene, Shot, ProjectSpec types
+│   ├── ProjectStore.swift       Per-project JSON files (flock-protected)
+│   ├── VideoDownloader.swift    URLSession download to ~/.vortex/downloads/
+│   ├── MCPServer.swift          JSON-RPC 2.0 over stdio
+│   ├── MCPToolRegistry.swift    14 tool + 3 resource definitions
+│   ├── MCPProtocol.swift        Request/response types, AnyCodableValue
 │   ├── DaemonServer.swift       Unix socket server (NWListener)
-│   ├── DaemonSession.swift      Per-connection session handler
-│   └── DaemonProtocol.swift     JSON-RPC daemon message types
+│   ├── DaemonSession.swift      Per-connection state + read/write loop
+│   └── DaemonProtocol.swift     Daemon JSON-RPC message types
 └── Output/
-    └── Output.swift             emitDict, emitArray, emitEvent, fail, failMessage, failStructured
+    └── Output.swift             emitDict, emitArray, emitEvent, fail, failStructured
 ```
 
-### Data flow — single generation
+### Data flow (single generation)
 
-1. `GenerationEngine.submit()` calls `PromptSafetyChecker.check()`. Blocked prompts throw `VortexError.promptBlocked` immediately.
-2. If a cost estimate is computable, `BudgetManager.preFlightCheck()` is called. Denied requests throw `VortexError.budgetExceeded`.
-3. The provider's `submit(request:apiKey:)` is called over HTTPS. The remote task ID and status URL are persisted to `GenerationStore`.
-4. `waitForCompletion()` polls `provider.poll()` on a configurable interval. Transient errors (URLError, rate limits) trigger up to 3 automatic poll retries with linear backoff. Submission failures retry with exponential backoff up to `maxRetries`.
-5. On success, `BudgetManager.recordSpend()` is called. The video is downloaded to `~/.vortex/downloads/<id>.mp4` (or a custom path). Download failures are recorded as warnings — the generation status remains `succeeded` and the download is retriable via `openflix download`.
-6. All stdout output is JSON. All stderr output is JSON with an `error` and `code` field.
+1. `PromptSafetyChecker.check()` — blocked prompts throw immediately
+2. `BudgetManager.preFlightCheck()` — exceeded limits throw before any API call
+3. `provider.submit()` — HTTPS call, remote task ID persisted to `GenerationStore`
+4. `provider.poll()` — configurable interval, transient errors retry 3x with backoff
+5. `BudgetManager.recordSpend()` — actual cost tracked on success
+6. `VideoDownloader.download()` — atomic download to `~/.vortex/downloads/<id>.mp4`
 
-### Store files
+### Data storage
 
-| Path | Purpose |
-|---|---|
-| `~/.vortex/store.json` | All generation records, JSON, flock-protected |
-| `~/.vortex/projects/<id>/project.json` | Per-project state with scenes and shots |
-| `~/.vortex/metrics.json` | Provider quality/latency/cost/success running averages |
-| `~/.vortex/budget_config.json` | Budget limit configuration |
-| `~/.vortex/daily_spend.json` | Current day's recorded spend |
-| `~/.vortex/downloads/` | Default download directory |
+| Path | Contents |
+|------|----------|
+| `~/.vortex/store.json` | All generation records |
+| `~/.vortex/downloads/` | Downloaded video files |
+| `~/.vortex/projects/<id>/project.json` | Per-project state |
+| `~/.vortex/metrics.json` | Provider quality/latency/cost metrics |
+| `~/.vortex/budget_config.json` | Budget limits |
+| `~/.vortex/daily_spend.json` | Daily spend counter |
 | `~/.vortex/daemon.sock` | Daemon Unix socket |
-| `~/.vortex/daemon.pid` | Daemon process ID |
+| `~/.vortex/daemon.pid` | Daemon PID |
+
+### Design decisions
+
+- **Zero runtime dependencies.** Links only against `swift-argument-parser` and the macOS `Security` framework. All networking via Foundation `URLSession`.
+- **Actor concurrency.** `BudgetManager`, `DAGExecutor`, `MCPServer`, `DaemonServer` use Swift actors for thread-safe concurrent access.
+- **File locking.** All JSON stores use `flock` + `NSLock` to prevent corruption from concurrent CLI invocations.
+- **Provider protocol.** Each provider implements `submit`, `poll`, `estimateCost`, and optional `cancel`. Adding a provider is one file + one line in `ProviderRegistry`.
 
 ---
 
-## Error Codes
+## Exit Codes
 
-All errors emitted to stderr carry a `code` field. For MCP responses and `failStructured` calls, the `ErrorCode` enum provides structured values with `retryable` and `http_equivalent` metadata.
+| Code | Meaning |
+|------|---------|
+| `0` | Success |
+| `1` | Error (structured JSON on stderr) |
 
-| ErrorCode | Retryable | HTTP Equivalent | Meaning |
-|---|---|---|---|
-| `AUTH_MISSING` | no | 401 | No API key found for the provider |
-| `AUTH_INVALID` | no | 401 | API key rejected by the provider |
-| `AUTH_EXPIRED` | no | 401 | API key has expired |
-| `PROVIDER_UNAVAILABLE` | no | 503 | Provider ID not registered |
-| `PROVIDER_RATE_LIMITED` | yes | 429 | Provider returned 429; retry after `retry_after_seconds` if set |
-| `PROVIDER_TIMEOUT` | yes | 504 | Poll loop timed out before generation completed |
-| `PROVIDER_SERVER_ERROR` | yes | 502 | Provider returned 5xx |
-| `INPUT_INVALID` | no | 400 | Invalid input parameter |
-| `INPUT_TOO_LARGE` | no | 400 | Input exceeds provider limits |
-| `PROMPT_UNSAFE` | no | 400 | Prompt blocked by safety checker |
-| `BUDGET_EXCEEDED` | no | 402 | Generation would exceed a configured budget limit |
-| `QUOTA_EXCEEDED` | no | 402 | Provider quota exhausted |
-| `DISK_FULL` | no | 500 | Local disk full during download |
-| `GENERATION_FAILED` | no | 500 | Provider reported generation failure |
-| `GENERATION_NOT_FOUND` | no | 404 | Generation ID not in local store |
-| `QUALITY_BELOW_THRESHOLD` | no | 500 | Video did not pass quality gate (advisory) |
-| `DOWNLOAD_FAILED` | yes | 500 | Network error during video download |
-| `INTERNAL_ERROR` | no | 500 | Unexpected internal error |
-| `CONFIG_INVALID` | no | 400 | Invalid configuration |
-| `NOT_COMPLETE` | yes | 404 | Generation exists but is not yet complete |
+### Error codes
 
-CLI error response shape (non-MCP):
+All errors carry a `code` field. MCP and structured errors include `retryable` and `retry_after_seconds`.
+
+| Code | Retryable | HTTP | Description |
+|------|-----------|------|-------------|
+| `AUTH_MISSING` | No | 401 | No API key for provider |
+| `AUTH_INVALID` | No | 401 | Key rejected by provider |
+| `AUTH_EXPIRED` | No | 401 | Key expired |
+| `PROVIDER_UNAVAILABLE` | No | 503 | Provider not registered |
+| `PROVIDER_RATE_LIMITED` | Yes | 429 | Rate limit hit |
+| `PROVIDER_TIMEOUT` | Yes | 504 | Poll timed out |
+| `PROVIDER_SERVER_ERROR` | Yes | 502 | Provider 5xx |
+| `INPUT_INVALID` | No | 400 | Invalid parameter |
+| `INPUT_TOO_LARGE` | No | 400 | Exceeds provider limits |
+| `PROMPT_UNSAFE` | No | 400 | Prompt blocked by safety checker |
+| `BUDGET_EXCEEDED` | No | 402 | Would exceed budget limit |
+| `QUOTA_EXCEEDED` | No | 402 | Provider quota exhausted |
+| `DISK_FULL` | No | 500 | Local disk full |
+| `GENERATION_FAILED` | No | 500 | Provider reported failure |
+| `GENERATION_NOT_FOUND` | No | 404 | ID not in local store |
+| `QUALITY_BELOW_THRESHOLD` | No | 500 | Failed quality gate |
+| `DOWNLOAD_FAILED` | Yes | 500 | Download network error |
+| `INTERNAL_ERROR` | No | 500 | Unexpected error |
+| `CONFIG_INVALID` | No | 400 | Invalid configuration |
+| `NOT_COMPLETE` | Yes | 404 | Generation not yet complete |
 
 ```json
 {"error": "No API key for 'fal'. Use: openflix keys set fal <key>", "code": "no_api_key"}
 ```
 
-Process exit code is `1` on all errors.
+---
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `VORTEX_FAL_KEY` | API key for fal.ai |
+| `VORTEX_REPLICATE_KEY` | API key for Replicate |
+| `VORTEX_RUNWAY_KEY` | API key for Runway |
+| `VORTEX_LUMA_KEY` | API key for Luma |
+| `VORTEX_KLING_KEY` | API key for Kling |
+| `VORTEX_MINIMAX_KEY` | API key for MiniMax |
+| `VORTEX_API_KEY` | Generic fallback (all providers) |
+| `ANTHROPIC_API_KEY` | For `llm-vision` quality evaluator |
 
 ---
 
 ## Contributing
 
-### Development setup
-
 ```sh
-git clone https://github.com/moiz-7/OpenFlix.git
-cd OpenFlix
+git clone https://github.com/openflix/openflix.git
+cd openflix/VortexCLI
 swift build
 .build/debug/openflix --help
 ```
 
-### Running tests
+### Adding a provider
 
-```sh
-bash test.sh
-```
-
-The test script runs both build verification and runtime tests against the debug binary. All tests must pass before merging.
-
-New features require:
-
-1. New tests in `test.sh` covering the happy path and at least one error case.
-2. Both debug and release builds verified (`swift build -c release`).
-3. Runtime tests where applicable, not just `--help` output checks.
+1. Create `Sources/openflix/Providers/NewProviderClient.swift`
+2. Implement `VideoProvider` protocol (`submit`, `poll`, `estimateCost`)
+3. Define models as `[CLIProviderModel]` with pricing and capabilities
+4. Add to `ProviderRegistry` in `ProviderProtocol.swift`
+5. Add `VORTEX_NEWPROVIDER_KEY` env var support in `CLIKeychain.swift`
 
 ### Code conventions
 
-- All stdout output via `Output.emitDict` / `Output.emitArray` / `Output.emitEvent`. No `print()` calls in command or core code.
-- All errors via `Output.fail` or `Output.failMessage` — both are `-> Never`.
-- Flags declared with `@Flag(name: .long)`, options with `@Option(name: .long)`.
-- New providers: implement `VideoProvider`, add to `ProviderRegistry.init()`.
-- New MCP tools: add a `MCPToolDefinition` to `MCPToolRegistry.allTools` and a `case` in `MCPServer.dispatchTool()`.
-- Keychain service prefix is `com.openflix.vortex.<provider>` — shared with the companion GUI app. Do not change.
-- `GenerationStore` API: use `get(_:)` not `load()`, `all()` not `loadAll()`.
-- GRDB/store insert pattern: use `var` not `let` for mutable model structs.
+- All stdout output via `Output.emitDict` / `Output.emitArray` / `Output.emitEvent`. No `print()`.
+- All errors via `Output.fail` or `Output.failMessage` (both `-> Never`).
+- Keychain service prefix: `com.openflix.vortex.{provider}` (shared with GUI app).
+- New MCP tools: add definition to `MCPToolRegistry.allTools` + case in `MCPServer.dispatchTool()`.
 
 ---
 
 ## License
 
-Source available for reference and personal, non-commercial use only. You may not copy, modify, distribute, sublicense, or use this software in a commercial product without prior written permission from Bubble Research. See [LICENSE](LICENSE).
+[MIT](../LICENSE) -- Copyright (c) 2026 Moiz Saeed
