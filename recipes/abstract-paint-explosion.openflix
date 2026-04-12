@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "b7c1d5e9-4f6a-4c8d-0e2f-5a7b9c1d2e46",
+      "name": "Paint Droplet Explosion",
+      "promptText": "Ultra-slow-motion capture of vibrant paint droplets colliding in mid-air, exploding into intricate tendrils and filaments that spread outward in a radial burst. Multiple colors — crimson, cobalt, emerald, gold — mixing and separating in turbulent fluid dynamics, pure black background, phantom camera 10000fps aesthetic, mesmerizing micro-detail of liquid surface tension.",
+      "negativePromptText": "photorealistic, text, watermark, figurative",
+      "provider": "fal",
+      "model": "fal-ai/veo3",
+      "aspectRatio": "16:9",
+      "durationSeconds": 8,
+      "widthPx": 1280,
+      "heightPx": 720,
+      "category": "abstract"
+    }
+  ]
+}

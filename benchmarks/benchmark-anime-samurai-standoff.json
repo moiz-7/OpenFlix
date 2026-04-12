@@ -1,0 +1,13 @@
+{
+  "recipe_id": "e2f6a0b4-9c1d-4f3e-5a7b-0c2d4e6f7a91",
+  "recipe_name": "Samurai Standoff",
+  "prompt": "Two samurai facing each other at dawn on an empty bridge over a misty river, tension building with close-up cuts between narrowed eyes. A single leaf falls between them, and in a flash both draw katanas with speed-line trails. Ink wash aesthetic with selective red accents on the blades, dramatic wind blowing robes and hair.",
+  "results": [
+    {"provider": "fal", "model": "fal-ai/veo3", "quality": 91, "cost_usd": 0.55, "latency_seconds": 58, "status": "succeeded"},
+    {"provider": "fal", "model": "fal-ai/kling-video/v2/master/text-to-video", "quality": 85, "cost_usd": 0.40, "latency_seconds": 45, "status": "succeeded"},
+    {"provider": "luma", "model": "ray-2", "quality": 68, "cost_usd": 0.75, "latency_seconds": 38, "status": "succeeded"}
+  ],
+  "winner_provider": "fal",
+  "winner_model": "fal-ai/veo3",
+  "winner_reason": "Highest quality (91) with best anime motion rendering"
+}

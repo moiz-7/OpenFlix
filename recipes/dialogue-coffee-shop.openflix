@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "f3a7b1c5-0d2e-4b4f-6c8d-1e3f5a7b8c02",
+      "name": "Coffee Shop Conversation",
+      "promptText": "Two friends engaged in animated conversation at a cozy coffee shop window seat, natural daylight streaming in and creating a warm atmosphere. Over-the-shoulder shot-reverse-shot between speakers, steam rising from ceramic mugs, background patrons softly blurred, indie film aesthetic with warm grain, natural color palette emphasizing wood tones and creamy whites.",
+      "negativePromptText": "action sequence, blurry, poor audio setup visual",
+      "provider": "fal",
+      "model": "fal-ai/kling-video/v2/master/text-to-video",
+      "aspectRatio": "16:9",
+      "durationSeconds": 8,
+      "widthPx": 1280,
+      "heightPx": 720,
+      "category": "dialogue"
+    }
+  ]
+}

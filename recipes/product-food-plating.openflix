@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "e8f2a6b0-5c7d-4f9e-1a3b-6c8d0e2f3a57",
+      "name": "Gourmet Food Plating",
+      "promptText": "Top-down overhead shot of a Michelin-star chef's hands placing the final microgreen garnish on an artfully plated dish, then camera slowly tilts to a 45-degree hero angle. Steam rising from the reduction sauce, vibrant colors of edible flowers and precise drizzle patterns, warm directional lighting on a dark slate surface, cinematic food photography style.",
+      "negativePromptText": "blurry, text overlay, low resolution, cluttered background",
+      "provider": "fal",
+      "model": "fal-ai/veo3",
+      "aspectRatio": "16:9",
+      "durationSeconds": 8,
+      "widthPx": 1280,
+      "heightPx": 720,
+      "category": "product"
+    }
+  ]
+}

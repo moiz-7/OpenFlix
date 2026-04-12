@@ -1,0 +1,14 @@
+{
+  "recipe_id": "d3e7f1a5-0b2c-4e4f-6a8b-1c3d5e7f8a02",
+  "recipe_name": "Volcanic Eruption",
+  "prompt": "Dramatic telephoto shot of a volcanic eruption with glowing lava fountaining hundreds of meters into a dark sky, molten rivers carving paths down the mountainside. Billowing ash clouds lit from below by orange fire, lightning cracking within the pyroclastic column, time-lapse of lava flow meeting ocean water creating massive steam plumes, intense red and black palette.",
+  "results": [
+    {"provider": "fal", "model": "fal-ai/veo3", "quality": 91, "cost_usd": 0.55, "latency_seconds": 63, "status": "succeeded"},
+    {"provider": "fal", "model": "fal-ai/seedance/video/v2", "quality": 76, "cost_usd": 0.30, "latency_seconds": 40, "status": "succeeded"},
+    {"provider": "runway", "model": "gen4_turbo", "quality": 84, "cost_usd": 0.65, "latency_seconds": 44, "status": "succeeded"},
+    {"provider": "luma", "model": "ray-flash-2", "quality": 62, "cost_usd": 0.25, "latency_seconds": 20, "status": "succeeded"}
+  ],
+  "winner_provider": "fal",
+  "winner_model": "fal-ai/veo3",
+  "winner_reason": "Highest quality (91) with best particle and volumetric effects"
+}

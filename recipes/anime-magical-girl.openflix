@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "b9c3d7e1-6f8a-4c0b-2d4e-7f9a1b3c4d68",
+      "name": "Magical Girl Transformation",
+      "promptText": "Anime magical girl transformation sequence with swirling ribbons of light wrapping around the character, sparkles and stars cascading outward in a radial burst. Dynamic spinning camera orbit, pastel pink and lavender color palette with gold accents, dramatic backlighting creating a silhouette before the final reveal pose.",
+      "negativePromptText": "3D render, photorealistic, blurry, low quality",
+      "provider": "fal",
+      "model": "fal-ai/kling-video/v2/master/text-to-video",
+      "aspectRatio": "16:9",
+      "durationSeconds": 8,
+      "widthPx": 1280,
+      "heightPx": 720,
+      "category": "anime"
+    }
+  ]
+}

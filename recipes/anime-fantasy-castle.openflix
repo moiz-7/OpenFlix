@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "f3a7b1c5-0d2e-4a4f-6b8c-1d3e5f7a8b02",
+      "name": "Fantasy Castle Flyover",
+      "promptText": "Majestic anime fantasy castle floating among the clouds, camera swooping around turrets and spires as dragons circle in the distance. Lush hanging gardens cascade from balconies, waterfalls pouring off the castle's edge into the void below, golden sunset light catching crystal towers, rich saturated fantasy palette with deep purples and golds.",
+      "negativePromptText": "3D render, photorealistic, blurry, low quality",
+      "provider": "fal",
+      "model": "fal-ai/veo3",
+      "aspectRatio": "16:9",
+      "durationSeconds": 10,
+      "widthPx": 1280,
+      "heightPx": 720,
+      "category": "anime"
+    }
+  ]
+}

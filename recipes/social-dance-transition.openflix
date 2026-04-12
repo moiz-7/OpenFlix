@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "a2b6c0d4-9e1f-4b3a-5c7d-0e2f4a6b7c91",
+      "name": "Dance Transition",
+      "promptText": "A dancer in streetwear performing a sharp spin move that transitions into a completely different outfit and location mid-rotation — from a rooftop at sunset to a neon-lit dance studio. Seamless wardrobe and environment swap timed to the beat, dynamic camera push-in, vibrant energy with motion blur on the spin and crisp freeze on the landing pose.",
+      "negativePromptText": "horizontal framing, slow pacing, text overlay",
+      "provider": "fal",
+      "model": "fal-ai/minimax/hailuo-02",
+      "aspectRatio": "9:16",
+      "durationSeconds": 4,
+      "widthPx": 720,
+      "heightPx": 1280,
+      "category": "social"
+    }
+  ]
+}

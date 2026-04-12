@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "e6f0a4b8-3c5d-4f7e-9a2b-4d6e8f0a1c35",
+      "name": "Underwater Exploration",
+      "promptText": "A diver descending into a deep ocean trench, bioluminescent creatures drifting past the camera in slow motion. Volumetric god rays piercing through turquoise water from the surface above, wide-angle macro lens capturing jellyfish tentacles in the foreground, deep blue-to-black gradient, ethereal ambient glow.",
+      "negativePromptText": "blurry, low quality, text, watermark, shaky camera",
+      "provider": "fal",
+      "model": "fal-ai/veo3",
+      "aspectRatio": "16:9",
+      "durationSeconds": 10,
+      "widthPx": 1280,
+      "heightPx": 720,
+      "category": "cinematic"
+    }
+  ]
+}

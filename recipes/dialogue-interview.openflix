@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "d1e5f9a3-8b0c-4f2d-4a6b-9c1d3e5f6a80",
+      "name": "Interview Setup",
+      "promptText": "Professional two-camera interview setup in a warmly lit studio with a subject seated in a mid-century modern chair, subtle bokeh from practical lamps in the background. Primary camera on a medium close-up with the subject speaking expressively, gentle rack focus between subject and interviewer silhouette, soft key light with hair light separation, documentary talking-head cinematography.",
+      "negativePromptText": "action sequence, blurry, poor audio setup visual",
+      "provider": "fal",
+      "model": "fal-ai/kling-video/v2/master/text-to-video",
+      "aspectRatio": "16:9",
+      "durationSeconds": 8,
+      "widthPx": 1280,
+      "heightPx": 720,
+      "category": "dialogue"
+    }
+  ]
+}

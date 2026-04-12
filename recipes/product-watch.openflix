@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "d7e1f5a9-4b6c-4e8d-0f2a-5b7c9d1e2f46",
+      "name": "Watch Mechanism",
+      "promptText": "Extreme macro shot diving into the exposed mechanical movement of a luxury Swiss watch, gears meshing and balance wheel oscillating in crisp slow motion. Camera pushes through layers of complications revealing ruby jewels and polished steel bridges, warm tungsten lighting reflecting off brushed and polished surfaces, shallow depth of field isolating each component.",
+      "negativePromptText": "blurry, text overlay, low resolution, cluttered background",
+      "provider": "runway",
+      "model": "gen4_turbo",
+      "aspectRatio": "16:9",
+      "durationSeconds": 10,
+      "widthPx": 1280,
+      "heightPx": 720,
+      "category": "product"
+    }
+  ]
+}

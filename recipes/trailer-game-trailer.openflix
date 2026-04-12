@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "b9c3d7e1-6f8a-4d0b-2e4f-7a9b1c3d4e68",
+      "name": "Game Trailer",
+      "promptText": "Cinematic game trailer opening with a warrior character standing at the edge of a cliff overlooking a vast fantasy kingdom, camera pulling back to reveal the scale. Quick montage of combat — sword clashes with particle sparks, spell casting with glowing rune circles, dragon swooping overhead — intercut with sweeping landscape establishing shots of diverse biomes, epic orchestral energy, AAA game cinematic quality.",
+      "negativePromptText": "amateur, low quality, poor lighting, shaky",
+      "provider": "fal",
+      "model": "fal-ai/veo3",
+      "aspectRatio": "16:9",
+      "durationSeconds": 10,
+      "widthPx": 1280,
+      "heightPx": 720,
+      "category": "trailer"
+    }
+  ]
+}

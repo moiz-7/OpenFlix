@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "f5a9b3c7-2d4e-4a6b-8c0d-3e5f7a9b0c24",
+      "name": "Flower Blooming Timelapse",
+      "promptText": "Extreme macro timelapse of a peony bud unfurling into full bloom over seconds, petals slowly separating and curling outward revealing intricate stamen details. Soft diffused studio lighting from above, shallow depth of field with creamy bokeh background in soft pastel green, dewdrops forming and sliding down petal surfaces, rich magenta and blush pink tones.",
+      "negativePromptText": "artificial, CGI look, text, watermark, urban",
+      "provider": "fal",
+      "model": "fal-ai/wan/v2.1/1080p",
+      "aspectRatio": "16:9",
+      "durationSeconds": 8,
+      "widthPx": 1280,
+      "heightPx": 720,
+      "category": "nature"
+    }
+  ]
+}

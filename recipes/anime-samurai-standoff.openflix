@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "e2f6a0b4-9c1d-4f3e-5a7b-0c2d4e6f7a91",
+      "name": "Samurai Standoff",
+      "promptText": "Two samurai facing each other at dawn on an empty bridge over a misty river, tension building with close-up cuts between narrowed eyes. A single leaf falls between them, and in a flash both draw katanas with speed-line trails. Ink wash aesthetic with selective red accents on the blades, dramatic wind blowing robes and hair.",
+      "negativePromptText": "3D render, photorealistic, blurry, low quality",
+      "provider": "fal",
+      "model": "fal-ai/veo3",
+      "aspectRatio": "16:9",
+      "durationSeconds": 10,
+      "widthPx": 1280,
+      "heightPx": 720,
+      "category": "anime"
+    }
+  ]
+}

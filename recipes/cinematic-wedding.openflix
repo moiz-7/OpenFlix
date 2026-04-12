@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "c8d2e6f4-1a3b-4d5e-9f7a-2c4b6d8e0f13",
+      "name": "Wedding Ceremony",
+      "promptText": "Elegant outdoor wedding ceremony at golden hour in a vineyard, slow dolly push toward the altar framed by white floral arches. Soft bokeh from fairy lights in the background, warm amber and blush tones, shallow depth of field on an 85mm portrait lens, gentle wind lifting the bride's veil.",
+      "negativePromptText": "blurry, low quality, text, watermark, shaky camera",
+      "provider": "fal",
+      "model": "fal-ai/veo3",
+      "aspectRatio": "16:9",
+      "durationSeconds": 8,
+      "widthPx": 1280,
+      "heightPx": 720,
+      "category": "cinematic"
+    }
+  ]
+}

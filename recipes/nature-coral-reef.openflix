@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "a0b4c8d2-7e9f-4b1c-3d5e-8f0a2b4c5d79",
+      "name": "Coral Reef Underwater",
+      "promptText": "Slow underwater dolly through a vibrant coral reef ecosystem, schools of tropical fish parting as the camera glides through branching staghorn and brain coral. Sun rays dappling through the water surface above, a sea turtle drifting gracefully in the background, rich saturated blues and yellows, shot with an underwater housing on a wide-angle rectilinear lens.",
+      "negativePromptText": "artificial, CGI look, text, watermark, urban",
+      "provider": "fal",
+      "model": "fal-ai/wan/v2.1/1080p",
+      "aspectRatio": "16:9",
+      "durationSeconds": 8,
+      "widthPx": 1280,
+      "heightPx": 720,
+      "category": "nature"
+    }
+  ]
+}

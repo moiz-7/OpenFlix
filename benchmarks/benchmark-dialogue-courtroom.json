@@ -1,0 +1,13 @@
+{
+  "recipe_id": "e2f6a0b4-9c1d-4a3e-5b7c-0d2e4f6a7b91",
+  "recipe_name": "Courtroom Drama",
+  "prompt": "Tense courtroom scene with a lawyer delivering a closing argument, slow push-in on the speaker's face showing conviction and controlled emotion. Cut to reaction shots of the jury listening intently, judge presiding from the bench above, warm wood-paneled interior with dramatic overhead practicals casting pools of light, shallow depth of field isolating key characters, legal drama cinematography.",
+  "results": [
+    {"provider": "fal", "model": "fal-ai/kling-video/v2/master/text-to-video", "quality": 84, "cost_usd": 0.45, "latency_seconds": 52, "status": "succeeded"},
+    {"provider": "kling", "model": "kling-v2.6-pro", "quality": 80, "cost_usd": 0.50, "latency_seconds": 65, "status": "succeeded"},
+    {"provider": "fal", "model": "fal-ai/veo3", "quality": 79, "cost_usd": 0.55, "latency_seconds": 58, "status": "succeeded"}
+  ],
+  "winner_provider": "fal",
+  "winner_model": "fal-ai/kling-video/v2/master/text-to-video",
+  "winner_reason": "Highest quality (84) with best human expression rendering for dialogue scenes"
+}

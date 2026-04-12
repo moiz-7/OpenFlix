@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "f7a1b5c9-4d6e-4a8f-0b3c-5e7f9a1b2d46",
+      "name": "Desert Landscape Drone",
+      "promptText": "Sweeping FPV drone shot soaring over Saharan sand dunes at magic hour, revealing an ancient desert fortress in the distance. Long dramatic shadows carving geometric patterns into the dunes, heat shimmer distortion on the horizon, warm ochre and burnt sienna palette, shot on RED V-Raptor with ND filtration.",
+      "negativePromptText": "blurry, low quality, text, watermark, shaky camera",
+      "provider": "fal",
+      "model": "fal-ai/veo3",
+      "aspectRatio": "16:9",
+      "durationSeconds": 8,
+      "widthPx": 1280,
+      "heightPx": 720,
+      "category": "cinematic"
+    }
+  ]
+}

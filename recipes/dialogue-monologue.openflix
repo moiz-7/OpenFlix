@@ -1,0 +1,20 @@
+{
+  "formatVersion": 2,
+  "exportedAt": "2026-04-12T00:00:00Z",
+  "author": "OpenFlix",
+  "recipes": [
+    {
+      "id": "a4b8c2d6-1e3f-4c5a-7d9e-2f4a6b8c9d13",
+      "name": "Emotional Monologue",
+      "promptText": "Tight close-up of an actor delivering a raw emotional monologue, tears welling in their eyes, camera imperceptibly drifting closer as the performance intensifies. Single source soft window light on one side of the face, the other half falling into shadow, catch light reflecting in glistening eyes, minimal set dressing to keep focus on the performance, intimate handheld micro-movements.",
+      "negativePromptText": "action sequence, blurry, poor audio setup visual",
+      "provider": "fal",
+      "model": "fal-ai/kling-video/v2/master/text-to-video",
+      "aspectRatio": "16:9",
+      "durationSeconds": 10,
+      "widthPx": 1280,
+      "heightPx": 720,
+      "category": "dialogue"
+    }
+  ]
+}

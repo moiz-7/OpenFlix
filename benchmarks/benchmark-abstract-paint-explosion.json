@@ -1,0 +1,13 @@
+{
+  "recipe_id": "b7c1d5e9-4f6a-4c8d-0e2f-5a7b9c1d2e46",
+  "recipe_name": "Paint Droplet Explosion",
+  "prompt": "Ultra-slow-motion capture of vibrant paint droplets colliding in mid-air, exploding into intricate tendrils and filaments that spread outward in a radial burst. Multiple colors — crimson, cobalt, emerald, gold — mixing and separating in turbulent fluid dynamics, pure black background, phantom camera 10000fps aesthetic, mesmerizing micro-detail of liquid surface tension.",
+  "results": [
+    {"provider": "fal", "model": "fal-ai/veo3", "quality": 88, "cost_usd": 0.48, "latency_seconds": 55, "status": "succeeded"},
+    {"provider": "luma", "model": "ray-2", "quality": 82, "cost_usd": 0.72, "latency_seconds": 32, "status": "succeeded"},
+    {"provider": "luma", "model": "ray-flash-2", "quality": 73, "cost_usd": 0.35, "latency_seconds": 22, "status": "succeeded"}
+  ],
+  "winner_provider": "fal",
+  "winner_model": "fal-ai/veo3",
+  "winner_reason": "Highest quality (88) with best fluid dynamics detail"
+}
