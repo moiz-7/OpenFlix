@@ -64,7 +64,8 @@ enum CLIKeychain {
 
     // MARK: - Provider API Keys
 
-    static func setKey(_ key: String, provider: String) {
+    @discardableResult
+    static func setKey(_ key: String, provider: String) -> OSStatus {
         let service = "\(servicePrefix).\(provider)"
         let data = Data(key.utf8)
 
@@ -74,9 +75,9 @@ enum CLIKeychain {
             kSecAttrService: service,
         ] as CFDictionary)
 
-        guard !key.isEmpty else { return }
+        guard !key.isEmpty else { return errSecSuccess }
 
-        SecItemAdd([
+        return SecItemAdd([
             kSecClass: kSecClassGenericPassword,
             kSecAttrService: service,
             kSecValueData: data,
@@ -96,9 +97,10 @@ enum CLIKeychain {
         return String(data: data, encoding: .utf8)
     }
 
-    static func deleteKey(provider: String) {
+    @discardableResult
+    static func deleteKey(provider: String) -> OSStatus {
         let service = "\(servicePrefix).\(provider)"
-        SecItemDelete([
+        return SecItemDelete([
             kSecClass: kSecClassGenericPassword,
             kSecAttrService: service,
         ] as CFDictionary)

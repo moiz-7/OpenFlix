@@ -113,6 +113,7 @@ enum OpenFlixError: Error, LocalizedError {
     case notComplete(String)
     case budgetExceeded(String)
     case promptBlocked([String])
+    case cancelNotSupported(String)
 
     var errorDescription: String? {
         switch self {
@@ -130,6 +131,7 @@ enum OpenFlixError: Error, LocalizedError {
         case .notComplete(let id):        return "Generation '\(id)' is not yet complete — use: openflix status \(id) --wait"
         case .budgetExceeded(let reason): return "Budget exceeded: \(reason)"
         case .promptBlocked(let flags):   return "Prompt blocked: \(flags.joined(separator: ", "))"
+        case .cancelNotSupported(let p):  return "cancel not supported by \(p)"
         }
     }
 
@@ -147,6 +149,7 @@ enum OpenFlixError: Error, LocalizedError {
         case .notComplete:       return "not_complete"
         case .budgetExceeded:    return "budget_exceeded"
         case .promptBlocked:     return "prompt_blocked"
+        case .cancelNotSupported: return "cancel_not_supported"
         }
     }
 
@@ -258,6 +261,9 @@ struct StructuredError: Codable {
         case .promptBlocked(let flags):
             return StructuredError(code: .promptUnsafe, message: "Prompt blocked by safety check",
                                    details: ["flags": .array(flags.map { .string($0) })], retryable: false, retryAfterSeconds: nil)
+        case .cancelNotSupported(let p):
+            return StructuredError(code: .inputInvalid, message: error.errorDescription ?? "",
+                                   details: ["provider": .string(p)], retryable: false, retryAfterSeconds: nil)
         }
     }
 

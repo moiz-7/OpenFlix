@@ -45,6 +45,9 @@ struct RecipeBenchmark: AsyncParsableCommand {
     @Option(name: .long, help: "Author name for published benchmark")
     var author: String?
 
+    @Option(name: .long, help: "Registry auth token (falls back to OPENFLIX_REGISTRY_TOKEN env var)")
+    var token: String?
+
     @Flag(name: .long, help: "Pretty-print JSON output")
     var pretty: Bool = false
 
@@ -316,7 +319,8 @@ struct RecipeBenchmark: AsyncParsableCommand {
         if publish {
             do {
                 let (benchmarkId, benchmarkUrl) = try await RegistryClient.publishBenchmark(
-                    results: output, author: author
+                    results: output, author: author,
+                    token: RegistryClient.resolveToken(flagValue: token)
                 )
                 output["benchmark_id"] = benchmarkId
                 output["benchmark_url"] = benchmarkUrl

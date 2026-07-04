@@ -21,5 +21,10 @@ let package = Package(
                 .linkedFramework("Security"),
             ]
         ),
+        .testTarget(
+            name: "openflixTests",
+            dependencies: ["openflix"],
+            path: "Tests/openflixTests"
+        ),
     ]
 )

@@ -597,9 +597,14 @@ struct RecipePublish: AsyncParsableCommand {
         discussion: """
         Uploads a recipe to the public registry for discovery and forking.
 
+        Authentication: pass --token, or set the OPENFLIX_REGISTRY_TOKEN
+        environment variable. Unauthenticated publishing is allowed when the
+        registry runs open (e.g. in dev).
+
         EXAMPLES
           openflix recipe publish <recipe-id>
           openflix recipe publish <recipe-id> --author "Your Name"
+          openflix recipe publish <recipe-id> --token <registry-token>
         """
     )
 
@@ -608,6 +613,9 @@ struct RecipePublish: AsyncParsableCommand {
 
     @Option(name: .long, help: "Author name for attribution")
     var author: String?
+
+    @Option(name: .long, help: "Registry auth token (falls back to OPENFLIX_REGISTRY_TOKEN env var)")
+    var token: String?
 
     @Flag(name: .long, help: "Pretty-print JSON output")
     var pretty: Bool = false
@@ -628,7 +636,10 @@ struct RecipePublish: AsyncParsableCommand {
         let bundle = RecipeBundle(exportedAt: Date(), author: author, recipes: [exported])
 
         do {
-            let (id, url) = try await RegistryClient.publish(bundle: bundle, author: author)
+            let (id, url) = try await RegistryClient.publish(
+                bundle: bundle, author: author,
+                token: RegistryClient.resolveToken(flagValue: token)
+            )
             Output.emitDict([
                 "id": id,
                 "url": url,

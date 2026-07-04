@@ -22,10 +22,12 @@ actor BudgetManager {
     private let configURL: URL
     private let spendURL: URL
     private var cachedConfig: BudgetConfig?
-    private var cachedSpend: DailySpend?
+    private var cachedHistory: [String: DailySpend]?
 
-    private init() {
-        let base = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".openflix")
+    /// Directory is injectable for tests; defaults to ~/.openflix.
+    init(directory: URL? = nil) {
+        let base = directory
+            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".openflix")
         configURL = base.appendingPathComponent("budget_config.json")
         spendURL = base.appendingPathComponent("daily_spend.json")
     }
@@ -52,25 +54,41 @@ actor BudgetManager {
 
     // MARK: - Daily spend
 
-    func loadSpend() -> DailySpend {
-        if let s = cachedSpend, s.date == todayString() { return s }
-        guard let data = try? Data(contentsOf: spendURL),
-              let spend = try? JSONDecoder().decode(DailySpend.self, from: data),
-              spend.date == todayString() else {
-            let fresh = DailySpend(date: todayString(), totalUSD: 0, generationCount: 0)
-            cachedSpend = fresh
-            return fresh
+    /// Spend history keyed by "yyyy-MM-dd". Migrates from the legacy
+    /// single-day file format on first read.
+    private func loadHistory() -> [String: DailySpend] {
+        if let h = cachedHistory { return h }
+        guard let data = try? Data(contentsOf: spendURL) else {
+            cachedHistory = [:]
+            return [:]
         }
-        cachedSpend = spend
-        return spend
+        if let history = try? JSONDecoder().decode([String: DailySpend].self, from: data) {
+            cachedHistory = history
+            return history
+        }
+        // Legacy format: a single DailySpend record
+        if let legacy = try? JSONDecoder().decode(DailySpend.self, from: data) {
+            let history = [legacy.date: legacy]
+            cachedHistory = history
+            return history
+        }
+        cachedHistory = [:]
+        return [:]
+    }
+
+    func loadSpend() -> DailySpend {
+        loadHistory()[todayString()]
+            ?? DailySpend(date: todayString(), totalUSD: 0, generationCount: 0)
     }
 
     private func saveSpend(_ spend: DailySpend) throws {
+        var history = loadHistory()
+        history[spend.date] = spend
         let dir = spendURL.deletingLastPathComponent()
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let data = try JSONEncoder().encode(spend)
+        let data = try JSONEncoder().encode(history)
         try data.write(to: spendURL, options: .atomic)
-        cachedSpend = spend
+        cachedHistory = history
     }
 
     // MARK: - Pre-flight check
@@ -104,7 +122,7 @@ actor BudgetManager {
 
         // Monthly limit
         if let monthlyLimit = config.monthlyLimitUSD {
-            let monthlySpend = loadMonthlySpend()
+            let monthlySpend = monthToDateSpend()
             let projected = monthlySpend + estimatedCost
             if projected > monthlyLimit {
                 return .denied(reason: "Monthly spend $\(String(format: "%.4f", monthlySpend)) + estimated $\(String(format: "%.4f", estimatedCost)) exceeds monthly limit $\(String(format: "%.4f", monthlyLimit))")
@@ -139,12 +157,14 @@ actor BudgetManager {
         try saveSpend(fresh)
     }
 
-    // MARK: - Monthly spend (sum of daily files is approximated by current daily)
+    // MARK: - Monthly spend
 
-    private func loadMonthlySpend() -> Double {
-        // For simplicity, we track monthly via the daily spend file
-        // A production system would aggregate across days
-        return loadSpend().totalUSD
+    /// Sum of all daily spend records in the current calendar month.
+    func monthToDateSpend() -> Double {
+        let monthPrefix = String(todayString().prefix(7))  // "yyyy-MM"
+        return loadHistory()
+            .filter { $0.key.hasPrefix(monthPrefix) }
+            .reduce(0) { $0 + $1.value.totalUSD }
     }
 
     // MARK: - Helpers
@@ -173,7 +193,10 @@ actor BudgetManager {
             d["per_generation_max_usd"] = limit
         }
         if let limit = config.monthlyLimitUSD {
+            let monthly = monthToDateSpend()
             d["monthly_limit_usd"] = limit
+            d["monthly_spend_usd"] = (monthly * 10000).rounded() / 10000
+            d["monthly_remaining_usd"] = ((max(0, limit - monthly)) * 10000).rounded() / 10000
         }
         d["warning_threshold_percent"] = config.warningThresholdPercent
         return d

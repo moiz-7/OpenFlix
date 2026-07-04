@@ -10,11 +10,14 @@ protocol VideoProvider: AnyObject {
     func submit(request: GenerationRequest, apiKey: String) async throws -> GenerationSubmission
     func poll(taskId: String, statusURL: URL?, apiKey: String) async throws -> PollStatus
     func estimateCost(durationSeconds: Double, modelId: String) -> Double?
-    func cancel(taskId: String, apiKey: String) async throws
+    func cancel(taskId: String, statusURL: URL?, apiKey: String) async throws
 }
 
 extension VideoProvider {
-    func cancel(taskId: String, apiKey: String) async throws { }
+    /// Providers without a remote cancel API get an explicit error, never a silent no-op.
+    func cancel(taskId: String, statusURL: URL?, apiKey: String) async throws {
+        throw OpenFlixError.cancelNotSupported(displayName)
+    }
 }
 
 // MARK: - Registry
