@@ -8,8 +8,17 @@ enum RegistryClient {
             ?? "https://registry.openflix.app"
     }
 
+    /// Resolve a registry auth token: explicit flag value first, then the
+    /// OPENFLIX_REGISTRY_TOKEN env var. Returns nil when unauthenticated
+    /// (the registry may run open in dev).
+    static func resolveToken(flagValue: String?) -> String? {
+        if let v = flagValue, !v.isEmpty { return v }
+        if let v = ProcessInfo.processInfo.environment["OPENFLIX_REGISTRY_TOKEN"], !v.isEmpty { return v }
+        return nil
+    }
+
     /// Publish a recipe bundle to the registry.
-    static func publish(bundle: RecipeBundle, author: String? = nil) async throws -> (id: String, url: String) {
+    static func publish(bundle: RecipeBundle, author: String? = nil, token: String? = nil) async throws -> (id: String, url: String) {
         var bundleToPublish = bundle
         if let author { bundleToPublish.author = author }
         let data = try bundleToPublish.encode()
@@ -20,6 +29,7 @@ enum RegistryClient {
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         request.httpBody = data
 
         let session = makeSession()
@@ -72,7 +82,7 @@ enum RegistryClient {
     }
 
     /// Publish benchmark results to the registry.
-    static func publishBenchmark(results: [String: Any], author: String? = nil) async throws -> (id: String, url: String) {
+    static func publishBenchmark(results: [String: Any], author: String? = nil, token: String? = nil) async throws -> (id: String, url: String) {
         var body = results
         if let author { body["author"] = author }
         let data = try JSONSerialization.data(withJSONObject: body)
@@ -83,6 +93,7 @@ enum RegistryClient {
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         request.httpBody = data
 
         let session = makeSession()

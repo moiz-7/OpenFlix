@@ -6,7 +6,9 @@ struct Cancel: AsyncParsableCommand {
         abstract: "Cancel a running generation",
         discussion: """
         Attempts to cancel a generation that is queued, submitted, or processing.
-        Sends a best-effort cancel request to the remote provider.
+        Sends a cancel request to the remote provider (Replicate, fal.ai, Runway).
+        Providers without a cancel API (Luma, Kling, MiniMax) return a
+        cancel_not_supported error and the generation is left untouched.
 
         EXAMPLES
           openflix cancel <generation-id>
@@ -43,11 +45,20 @@ struct Cancel: AsyncParsableCommand {
             )
         }
 
-        // Best-effort remote cancel
+        // Remote cancel — providers without cancel support surface a real error.
         if let taskId = gen.remoteTaskId,
            let key = try? CLIKeychain.resolveKey(provider: gen.provider, flagValue: apiKey),
            let provider = try? ProviderRegistry.shared.provider(for: gen.provider) {
-            try? await provider.cancel(taskId: taskId, apiKey: key)
+            do {
+                try await provider.cancel(taskId: taskId, statusURL: gen.statusURL.flatMap { URL(string: $0) }, apiKey: key)
+            } catch let error as OpenFlixError {
+                if case .cancelNotSupported = error {
+                    Output.fail(error)
+                }
+                // Other provider errors are best-effort — still cancel locally.
+            } catch {
+                // Best-effort: network failures don't block local cancellation.
+            }
         }
 
         GenerationStore.shared.update(id: gen.id) { g in

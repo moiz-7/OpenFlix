@@ -72,6 +72,12 @@ final class ReplicateClient: VideoProvider {
 
         let (data, _) = try await session.jsonData(for: urlReq)
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        return Self.parsePollStatus(json)
+    }
+
+    /// Pure parsing of a Replicate prediction response — separated from the
+    /// network fetch so it is unit-testable with canned JSON.
+    static func parsePollStatus(_ json: [String: Any]?) -> PollStatus {
         let status = json?["status"] as? String ?? ""
 
         switch status {
@@ -94,5 +100,16 @@ final class ReplicateClient: VideoProvider {
     func estimateCost(durationSeconds: Double, modelId: String) -> Double? {
         let cps = models.first { $0.modelId == modelId }?.costPerSecondUSD ?? 0.05
         return cps * durationSeconds
+    }
+
+    func cancel(taskId: String, statusURL: URL?, apiKey: String) async throws {
+        guard let encoded = taskId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+              let url = URL(string: "https://api.replicate.com/v1/predictions/\(encoded)/cancel") else {
+            throw OpenFlixError.invalidResponse("Invalid task ID: \(taskId)")
+        }
+        var urlReq = URLRequest(url: url)
+        urlReq.httpMethod = "POST"
+        urlReq.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        _ = try await session.jsonData(for: urlReq)
     }
 }

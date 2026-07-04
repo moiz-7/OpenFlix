@@ -61,6 +61,12 @@ final class RunwayClient: VideoProvider {
 
         let (data, _) = try await session.jsonData(for: urlReq)
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        return Self.parsePollStatus(json)
+    }
+
+    /// Pure parsing of a Runway task response — separated from the
+    /// network fetch so it is unit-testable with canned JSON.
+    static func parsePollStatus(_ json: [String: Any]?) -> PollStatus {
         let status = json?["status"] as? String ?? ""
 
         switch status {
@@ -85,5 +91,13 @@ final class RunwayClient: VideoProvider {
     func estimateCost(durationSeconds: Double, modelId: String) -> Double? {
         let cps = models.first { $0.modelId == modelId }?.costPerSecondUSD ?? 0.05
         return cps * durationSeconds
+    }
+
+    func cancel(taskId: String, statusURL: URL?, apiKey: String) async throws {
+        var urlReq = URLRequest(url: base.appendingPathComponent("tasks/\(taskId)"))
+        urlReq.httpMethod = "DELETE"
+        urlReq.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        urlReq.setValue(apiVersion, forHTTPHeaderField: "X-Runway-Version")
+        _ = try await session.jsonData(for: urlReq)
     }
 }

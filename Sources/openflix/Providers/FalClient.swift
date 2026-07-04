@@ -106,4 +106,17 @@ final class FalClient: VideoProvider {
         let cps = models.first { $0.modelId == modelId }?.costPerSecondUSD ?? 0.05
         return cps * durationSeconds
     }
+
+    func cancel(taskId: String, statusURL: URL?, apiKey: String) async throws {
+        // Status URL is https://queue.fal.run/{model_id}/requests/{request_id}/status;
+        // the cancel endpoint is the same path with /cancel instead of /status.
+        guard let statusURL = statusURL, statusURL.lastPathComponent == "status" else {
+            throw OpenFlixError.invalidResponse("No status URL for fal.ai generation — cannot cancel")
+        }
+        let url = statusURL.deletingLastPathComponent().appendingPathComponent("cancel")
+        var urlReq = URLRequest(url: url)
+        urlReq.httpMethod = "PUT"
+        urlReq.setValue("Key \(apiKey)", forHTTPHeaderField: "Authorization")
+        _ = try await session.jsonData(for: urlReq)
+    }
 }
