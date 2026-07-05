@@ -2,7 +2,6 @@
 *.o
 *.d
 .DS_Store
-test.sh
 
 # Internal reports
 *-report.md
