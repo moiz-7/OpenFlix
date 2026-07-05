@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import OpenFlixKit
 
 // MARK: - Shared provider-cancel path (used by CLI cancel and MCP cancel_generation)
 
@@ -20,7 +21,8 @@ enum CancelService {
             return .noRemoteTask
         }
         do {
-            try await provider.cancel(taskId: taskId, statusURL: gen.statusURL.flatMap { URL(string: $0) }, apiKey: key)
+            do { try await provider.cancel(taskId: taskId, statusURL: gen.statusURL.flatMap { URL(string: $0) }, apiKey: key) }
+            catch let e as ProviderError { throw OpenFlixError(e) }
             return .cancelled
         } catch let error as OpenFlixError {
             if case .cancelNotSupported = error { return .notSupported(error) }

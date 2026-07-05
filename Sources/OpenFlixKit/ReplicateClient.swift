@@ -1,10 +1,10 @@
 import Foundation
 
-final class ReplicateClient: VideoProvider {
-    let providerId = "replicate"
-    let displayName = "Replicate"
+public final class ReplicateClient: VideoProvider {
+    public let providerId = "replicate"
+    public let displayName = "Replicate"
 
-    let models: [CLIProviderModel] = [
+    public let models: [CLIProviderModel] = [
         .priced(providerId: "replicate", providerName: "Replicate",
             modelId: "minimax/video-01-live", displayName: "MiniMax Video-01 Live",
             defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 6, supportsImageToVideo: false),
@@ -21,7 +21,9 @@ final class ReplicateClient: VideoProvider {
 
     private let session = makeSession()
 
-    func submit(request: GenerationRequest, apiKey: String) async throws -> GenerationSubmission {
+    public init() {}
+
+    public func submit(request: GenerationRequest, apiKey: String) async throws -> GenerationSubmission {
         var input: [String: Any] = ["prompt": request.prompt]
         if let v = request.negativePrompt, !v.isEmpty { input["negative_prompt"] = v }
         if let w = request.width    { input["width"] = w }
@@ -29,7 +31,7 @@ final class ReplicateClient: VideoProvider {
         if let d = request.durationSeconds { input["num_frames"] = Int(d * 8) }
 
         guard let url = URL(string: "https://api.replicate.com/v1/predictions") else {
-            throw OpenFlixError.invalidResponse("Invalid Replicate API URL")
+            throw ProviderError.invalidResponse("Invalid Replicate API URL")
         }
         var urlReq = URLRequest(url: url)
         urlReq.httpMethod = "POST"
@@ -45,7 +47,7 @@ final class ReplicateClient: VideoProvider {
         guard let taskId = json?["id"] as? String,
               let urls = json?["urls"] as? [String: Any],
               let getURL = urls["get"] as? String else {
-            throw OpenFlixError.invalidResponse("Missing id/urls in Replicate response")
+            throw ProviderError.invalidResponse("Missing id/urls in Replicate response")
         }
         return GenerationSubmission(
             remoteTaskId: taskId,
@@ -54,13 +56,13 @@ final class ReplicateClient: VideoProvider {
         )
     }
 
-    func poll(taskId: String, statusURL: URL?, apiKey: String) async throws -> PollStatus {
+    public func poll(taskId: String, statusURL: URL?, apiKey: String) async throws -> PollStatus {
         let url: URL
         if let statusURL = statusURL {
             url = statusURL
         } else {
             guard let encoded = taskId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
-                throw OpenFlixError.invalidResponse("Invalid task ID: \(taskId)")
+                throw ProviderError.invalidResponse("Invalid task ID: \(taskId)")
             }
             guard let fallback = URL(string: "https://api.replicate.com/v1/predictions/\(encoded)") else {
                 return .failed(message: "Replicate: invalid task ID for URL construction")
@@ -77,7 +79,7 @@ final class ReplicateClient: VideoProvider {
 
     /// Pure parsing of a Replicate prediction response — separated from the
     /// network fetch so it is unit-testable with canned JSON.
-    static func parsePollStatus(_ json: [String: Any]?) -> PollStatus {
+    public static func parsePollStatus(_ json: [String: Any]?) -> PollStatus {
         let status = json?["status"] as? String ?? ""
 
         switch status {
@@ -98,10 +100,10 @@ final class ReplicateClient: VideoProvider {
     }
 
 
-    func cancel(taskId: String, statusURL: URL?, apiKey: String) async throws {
+    public func cancel(taskId: String, statusURL: URL?, apiKey: String) async throws {
         guard let encoded = taskId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
               let url = URL(string: "https://api.replicate.com/v1/predictions/\(encoded)/cancel") else {
-            throw OpenFlixError.invalidResponse("Invalid task ID: \(taskId)")
+            throw ProviderError.invalidResponse("Invalid task ID: \(taskId)")
         }
         var urlReq = URLRequest(url: url)
         urlReq.httpMethod = "POST"

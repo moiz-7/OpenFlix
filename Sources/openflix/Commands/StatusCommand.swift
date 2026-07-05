@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import OpenFlixKit
 
 struct Status: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
@@ -73,7 +74,9 @@ struct Status: AsyncParsableCommand {
                 Output.emitDict(gen.jsonRepresentation)
                 return
             }
-            let pollResult = try await provider.poll(taskId: taskId, statusURL: statusURL, apiKey: key)
+            let pollResult: PollStatus
+            do { pollResult = try await provider.poll(taskId: taskId, statusURL: statusURL, apiKey: key) }
+            catch let e as ProviderError { throw OpenFlixError(e) }
             switch pollResult {
             case .queued:              gen.status = .submitted
             case .processing:          gen.status = .processing

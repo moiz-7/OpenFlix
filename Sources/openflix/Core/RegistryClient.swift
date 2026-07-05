@@ -1,4 +1,5 @@
 import Foundation
+import OpenFlixKit
 
 /// HTTP client for the OpenFlix recipe registry.
 /// Base URL is configurable via the OPENFLIX_REGISTRY_URL environment variable.

@@ -1,4 +1,5 @@
 import XCTest
+import OpenFlixKit
 @testable import openflix
 
 final class ModelPricingTests: XCTestCase {

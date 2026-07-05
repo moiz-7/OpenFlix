@@ -1,4 +1,5 @@
 import Foundation
+import OpenFlixKit
 
 /// Core engine: submit a generation to a provider, poll until done, download the result.
 final class GenerationEngine {
@@ -80,7 +81,9 @@ final class GenerationEngine {
             }
         }
 
-        let submission = try await provider.submit(request: request, apiKey: key)
+        let submission: GenerationSubmission
+        do { submission = try await provider.submit(request: request, apiKey: key) }
+        catch let e as ProviderError { throw OpenFlixError(e) }
 
         let gen = CLIGeneration(
             id: UUID().uuidString,
@@ -202,7 +205,8 @@ final class GenerationEngine {
             // Poll with transient error retry
             let pollResult: PollStatus
             do {
-                pollResult = try await provider.poll(taskId: taskId, statusURL: statusURL, apiKey: key)
+                do { pollResult = try await provider.poll(taskId: taskId, statusURL: statusURL, apiKey: key) }
+                catch let e as ProviderError { throw OpenFlixError(e) }
             } catch {
                 let isTransient = (error as? URLError) != nil
                     || (error as? OpenFlixError).map { e in e.code == "rate_limited" || e.code == "http_error" } ?? false

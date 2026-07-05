@@ -1,6 +1,32 @@
-# OpenFlixKit extraction — design note (deferred)
+# OpenFlixKit extraction — design note
 
-Status: **deliberately not done this sprint.** Karpathy rule: no abstraction
+Status: **Waves 1–2 done** (option 1: `OpenFlixKit` target + library product
+inside this repo). App adoption is the next step — its first real import is
+`.openflix` encode/decode + arg substitution (`RecipeBundle`/`Recipe`/
+`RecipeArgResolver`), replacing `VortexExportBundle`. Tag `kit-0.1.0` should
+be created **at push time** so the app pins a version, not `main` (tag not
+yet created — this repo has uncommitted extraction changes).
+
+Execution notes vs. the original plan below:
+- `CLIRecipe` moved to the kit as `Recipe`; the CLI keeps a
+  `typealias CLIRecipe = Recipe` shim, so CLI call sites did not churn.
+- The error split used the "`ProviderError` in kit + map" option: the kit
+  throws a new public `ProviderError` (http_error / invalid_response /
+  rate_limited / cancel_not_supported — same `code` strings); the CLI's
+  `OpenFlixError` kept its full case surface and every command's catch block
+  is untouched. Mapping happens at 4 provider-call boundary sites
+  (GenerationEngine submit + poll, StatusCommand poll, CancelCommand cancel).
+- `ProviderRegistry` and the CLI-side HTTP helpers stayed in
+  `Sources/openflix/Providers/ProviderProtocol.swift` (which providers ship in
+  the binary — and which error type networking throws — are CLI decisions);
+  the kit has its own internal `jsonData`/`makeSession` copy for its clients.
+- Gauntlet after each wave: `swift build` 0 warnings, `swift test` 106/0
+  failures (RecipeArgs/RecipeBundle suites now under `OpenFlixKitTests`),
+  `test.sh` 205/205.
+
+Original design note follows.
+
+Karpathy rule: no abstraction
 before the third consumer. Today the CLI is the only consumer of these types —
 the macOS app has its own parallel implementations (GRDB-backed `VortexRecipe`,
 its own provider clients) and has not adopted any shared code. A rushed module

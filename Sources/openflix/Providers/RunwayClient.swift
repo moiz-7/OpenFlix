@@ -1,4 +1,5 @@
 import Foundation
+import OpenFlixKit
 
 final class RunwayClient: VideoProvider {
     let providerId = "runway"

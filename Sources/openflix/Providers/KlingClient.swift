@@ -1,4 +1,5 @@
 import Foundation
+import OpenFlixKit
 
 final class KlingClient: VideoProvider {
     let providerId = "kling"

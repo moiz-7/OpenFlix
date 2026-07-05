@@ -314,7 +314,12 @@ fi
 echo "31. Round 3: All providers warn on unknown status"
 ALL_WARN=true
 for client in Kling Luma Runway Replicate MiniMax Fal; do
-    if ! grep -q 'unknown_status' Sources/openflix/Providers/${client}Client.swift; then
+    if [ "$client" = "Replicate" ]; then
+        CLIENT_FILE="Sources/OpenFlixKit/${client}Client.swift"   # lives in the kit
+    else
+        CLIENT_FILE="Sources/openflix/Providers/${client}Client.swift"
+    fi
+    if ! grep -q 'unknown_status' "$CLIENT_FILE"; then
         ALL_WARN=false
         fail "${client}Client missing unknown_status warning"
     fi
@@ -325,7 +330,7 @@ fi
 
 # ── 32. Round 3: Replicate safe URL ──────────────────────
 echo "32. Round 3: Replicate safe URL"
-if grep -q 'addingPercentEncoding' Sources/openflix/Providers/ReplicateClient.swift; then
+if grep -q 'addingPercentEncoding' Sources/OpenFlixKit/ReplicateClient.swift; then
     pass "Replicate uses safe URL construction"
 else
     fail "Replicate missing safe URL construction"
@@ -1258,7 +1263,7 @@ fi
 
 # ── 134. Round 7: ReplicateClient guards submit URL ──────
 echo "134. Round 7: ReplicateClient guards submit URL"
-if grep -q 'guard let url = URL(string: "https://api.replicate.com' Sources/openflix/Providers/ReplicateClient.swift; then
+if grep -q 'guard let url = URL(string: "https://api.replicate.com' Sources/OpenFlixKit/ReplicateClient.swift; then
     pass "ReplicateClient guards submit URL"
 else
     fail "ReplicateClient guards submit URL"
@@ -1266,7 +1271,7 @@ fi
 
 # ── 135. Round 7: Replicate encoding throws on failure ───
 echo "135. Round 7: Replicate encoding throws on failure"
-if grep -q 'guard let encoded = taskId.addingPercentEncoding' Sources/openflix/Providers/ReplicateClient.swift; then
+if grep -q 'guard let encoded = taskId.addingPercentEncoding' Sources/OpenFlixKit/ReplicateClient.swift; then
     pass "Replicate encoding throws on failure"
 else
     fail "Replicate encoding throws on failure"
@@ -1982,9 +1987,9 @@ if os.path.exists(path):
 " 2>/dev/null || true
 
 # ── 196. Single pricing table ──────────────────────────
-echo "196. Pricing: single table in Core/ModelPricing.swift"
-if [ -f Sources/openflix/Core/ModelPricing.swift ] && \
-   ! grep -q "costPerSecondUSD: 0\." Sources/openflix/Providers/*.swift; then
+echo "196. Pricing: single table in OpenFlixKit/ModelPricing.swift"
+if [ -f Sources/OpenFlixKit/ModelPricing.swift ] && \
+   ! grep -q "costPerSecondUSD: 0\." Sources/openflix/Providers/*.swift Sources/OpenFlixKit/ReplicateClient.swift; then
     pass "no per-model cost constants left in provider clients"
 else
     fail "pricing constants still duplicated in provider clients"
