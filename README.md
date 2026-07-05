@@ -144,6 +144,13 @@ openflix budget                     Manage spending limits
 | Luma | Ray 2, Ray Flash 2, Ray 3 | $0.05-0.20/s |
 | Kling | v2.6 Pro, v2.6 Standard, v2.5 Turbo | $0.03-0.10/s |
 | MiniMax | Hailuo 2.3, T2V-01 Director, S2V-01 | $0.04-0.05/s |
+| Local (ComfyUI) | comfyui — your own workflow graph, keyless | $0 |
+
+The `local` provider talks to a ComfyUI server (`OPENFLIX_COMFYUI_URL`, default
+`http://127.0.0.1:8188`) and needs no API key. Video graphs are rig-specific:
+export your workflow with **Save (API Format)** in ComfyUI, insert
+`{{prompt}}`, `{{negative_prompt}}`, `{{seed}}`, and `{{duration}}`
+placeholders, and save it to `~/.openflix/comfyui-graph.json`.
 
 ## Example Recipes
 

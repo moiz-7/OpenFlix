@@ -13,6 +13,11 @@ enum CLIKeychain {
     private static let migrationFlagV2 = "com.openflix.cli.keychain.v2.migrated"
     private static let knownProviders = ["fal", "replicate", "runway", "luma", "kling", "minimax"]
 
+    /// Providers that require no API key (local servers, e.g. ComfyUI).
+    /// `resolveKey` short-circuits for these — the single choke point every
+    /// generation path (generate, batch, projects, workflows) goes through.
+    static let keylessProviders: Set<String> = ["local"]
+
     /// One-time migration chain:
     /// 1. com.meridian.vortex.* -> com.openflix.cli.*  (v1 legacy)
     /// 2. com.openflix.vortex.* -> com.openflix.cli.*   (v2 rename)
@@ -120,6 +125,8 @@ enum CLIKeychain {
     /// 5. VORTEX_API_KEY env var (legacy generic fallback)
     /// 6. macOS Keychain (shared with OpenFlix GUI)
     static func resolveKey(provider: String, flagValue: String?) throws -> String {
+        // Keyless providers never require (or read) a key.
+        if keylessProviders.contains(provider) { return "" }
         migrateKeychainIfNeeded()
         if let v = flagValue, !v.isEmpty { return v }
 

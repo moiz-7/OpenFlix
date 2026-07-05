@@ -18,6 +18,13 @@ final class ProviderRegistry {
     private var _providers: [String: VideoProvider]
 
     private init() {
+        // Local ComfyUI: base URL from env (kit never reads env), graph
+        // template from ~/.openflix/comfyui-graph.json when present.
+        let comfyBase = ProcessInfo.processInfo.environment["OPENFLIX_COMFYUI_URL"]
+            ?? "http://127.0.0.1:8188"
+        let comfyTemplatePath = ("~/.openflix/comfyui-graph.json" as NSString).expandingTildeInPath
+        let comfyTemplate = try? String(contentsOfFile: comfyTemplatePath, encoding: .utf8)
+
         let all: [VideoProvider] = [
             ReplicateClient(),
             FalClient(),
@@ -25,6 +32,7 @@ final class ProviderRegistry {
             LumaClient(),
             KlingClient(),
             MiniMaxClient(),
+            ComfyUIClient(baseURL: comfyBase, graphTemplate: comfyTemplate),
         ]
         _providers = Dictionary(uniqueKeysWithValues: all.map { ($0.providerId, $0) })
     }
