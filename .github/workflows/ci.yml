@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: macos-14
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache SwiftPM build
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: swiftpm-${{ runner.os }}-${{ hashFiles('Package.resolved', 'Package.swift') }}
+          restore-keys: |
+            swiftpm-${{ runner.os }}-
+
+      - name: Build
+        run: swift build
+
+      - name: Unit tests
+        run: swift test
+
+      - name: Smoke tests
+        # test.sh is 183 offline-safe smoke tests; needs no API keys.
+        run: |
+          if [ ! -f test.sh ]; then
+            # test.sh is intentionally gitignored today ("local only" decision).
+            # CI runs build + unit tests without it. To get the 183 smoke tests
+            # in CI too: remove test.sh from .gitignore and commit it.
+            echo "::warning::test.sh not in checkout (gitignored by design) — skipping smoke tests. Build + unit tests still gate."
+            exit 0
+          fi
+          bash test.sh
