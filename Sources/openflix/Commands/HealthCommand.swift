@@ -50,6 +50,16 @@ struct Health: AsyncParsableCommand {
         var providerResults: [[String: Any]] = []
         var allConfigured = true
         for prov in registry.all {
+            // Keyless providers (local ComfyUI) are always "configured".
+            if CLIKeychain.keylessProviders.contains(prov.providerId) {
+                providerResults.append([
+                    "provider": prov.providerId,
+                    "display_name": prov.displayName,
+                    "configured": true,
+                    "keyless": true,
+                ])
+                continue
+            }
             let hasKeychain = CLIKeychain.hasKey(provider: prov.providerId)
             let providerSuffix = prov.providerId.uppercased().replacingOccurrences(of: "-", with: "_")
             let hasEnv = ProcessInfo.processInfo.environment["OPENFLIX_\(providerSuffix)_KEY"] != nil

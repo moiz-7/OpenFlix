@@ -39,12 +39,15 @@ public enum ModelPricing {
         "MiniMax-Hailuo-2.3":                          0.05,
         "T2V-01-Director":                             0.04,
         "S2V-01":                                      0.05,
+        // Local (ComfyUI) — zero marginal cost
+        "comfyui":                                     0.0,
     ]
 
     /// Fallback $/second when a model is missing from the table.
     public static let providerFallbackUSD: [String: Double] = [
         "fal": 0.05, "replicate": 0.05, "runway": 0.05,
         "luma": 0.10, "kling": 0.05, "minimax": 0.05,
+        "local": 0.0,
     ]
 
     public static let globalFallbackUSD = 0.05

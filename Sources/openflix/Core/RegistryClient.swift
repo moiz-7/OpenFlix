@@ -99,6 +99,64 @@ enum RegistryClient {
         return data
     }
 
+    /// Publish a workflow spec to the registry.
+    /// Contract: POST /api/workflows {"name", "description"?, "spec": {...}}
+    /// → {"id", "url"} ("url" is additive; nil when the server omits it).
+    static func publishWorkflow(name: String, description: String?,
+                                spec: [String: Any], token: String?) async throws -> (id: String, url: String?) {
+        var body: [String: Any] = ["name": name, "spec": spec]
+        if let description, !description.isEmpty { body["description"] = description }
+        let data = try JSONSerialization.data(withJSONObject: body)
+
+        guard let endpoint = URL(string: "\(baseURL)/api/workflows") else {
+            throw OpenFlixError.invalidResponse("Invalid registry URL: \(baseURL)/api/workflows")
+        }
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
+        request.httpBody = data
+
+        let session = makeSession()
+        let (responseData, _) = try await session.jsonData(for: request)
+        let json = try JSONSerialization.jsonObject(with: responseData) as? [String: Any] ?? [:]
+        guard let id = json["id"] as? String else {
+            throw OpenFlixError.invalidResponse("Registry returned invalid response")
+        }
+        return (id: id, url: json["url"] as? String)
+    }
+
+    /// Credit a workflow download counter — fire-and-forget: short timeout,
+    /// all errors swallowed, never blocks or fails an import meaningfully.
+    static func creditWorkflowDownload(id: String, base: String? = nil) async {
+        let root = base ?? baseURL
+        guard let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+              let url = URL(string: "\(root)/api/workflows/\(encoded)/download") else { return }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        let config = URLSessionConfiguration.ephemeral
+        config.timeoutIntervalForRequest = 5
+        config.timeoutIntervalForResource = 5
+        _ = try? await URLSession(configuration: config).jsonData(for: request)
+    }
+
+    /// Fetch a workflow from the registry by id.
+    /// Contract: GET /api/workflows/{id} → {"id","name","description","spec": {...}, ...}.
+    /// `base` overrides the default registry root (full-URL imports).
+    static func fetchWorkflow(id: String, base: String? = nil) async throws -> [String: Any] {
+        let root = base ?? baseURL
+        guard let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+              let url = URL(string: "\(root)/api/workflows/\(encoded)") else {
+            throw OpenFlixError.invalidResponse("Invalid registry URL for workflow: \(id)")
+        }
+        let session = makeSession()
+        let (data, _) = try await session.jsonData(for: URLRequest(url: url))
+        guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw OpenFlixError.invalidResponse("Registry returned invalid workflow response")
+        }
+        return json
+    }
+
     /// Publish benchmark results to the registry.
     static func publishBenchmark(results: [String: Any], author: String? = nil, token: String? = nil) async throws -> (id: String, url: String) {
         var body = results

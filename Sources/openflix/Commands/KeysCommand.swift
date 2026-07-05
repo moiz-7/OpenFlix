@@ -93,7 +93,10 @@ struct KeysList: AsyncParsableCommand {
     mutating func run() async throws {
         Output.pretty = pretty
         let result: [[String: Any]] = ProviderRegistry.shared.all.map {
-            ["provider": $0.providerId, "has_key": CLIKeychain.hasKey(provider: $0.providerId)]
+            if CLIKeychain.keylessProviders.contains($0.providerId) {
+                return ["provider": $0.providerId, "has_key": false, "keyless": true]
+            }
+            return ["provider": $0.providerId, "has_key": CLIKeychain.hasKey(provider: $0.providerId)]
         }
         Output.emitArray(result)
     }

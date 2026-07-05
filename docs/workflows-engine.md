@@ -212,6 +212,41 @@ EOF
 chmod +x ~/.openflix/hooks/pre-generate
 ```
 
+## Publishing & importing workflows
+
+Share workflow files through the OpenFlix registry:
+
+```bash
+# Publish (validates the file locally BEFORE any network call)
+openflix workflow publish film.json
+openflix workflow publish film.json --name "My Film" --description "Two-stage spot"
+
+# Import by id or full registry URL
+openflix workflow import wf_abc123
+openflix workflow import https://registry.openflix.app/workflows/wf_abc123
+openflix workflow import wf_abc123 --output film.json --force
+```
+
+**`workflow publish <file.json>`** — parses and validates the file with the exact
+rules `workflow run` uses (any validation error, e.g. `empty_stages` or
+`cyclic_dependency`, fails the publish before the registry is contacted), then
+`POST {registry}/api/workflows` with `{"name", "description"?, "spec": {<file JSON>}}`.
+`--name` defaults to the spec's `name`. Auth: `--token` or the
+`OPENFLIX_REGISTRY_TOKEN` env var (same as `recipe publish`; open registries
+accept unauthenticated publishes). Output: `{"id", "url", "name", "stage_count"}`.
+
+**`workflow import <id-or-full-url>`** — resolves the reference (a bare id uses
+`OPENFLIX_REGISTRY_URL`; a full `…/workflows/<id>` or `…/api/workflows/<id>` URL
+pins the host), fetches `GET {registry}/api/workflows/{id}`, credits the
+registry's download counter (fire-and-forget — never fails the import),
+validates the fetched `spec` locally, and saves it as a runnable workflow file.
+Default filename: `<name>.workflow.json` (sanitized); an existing file is never
+overwritten without `--force` (`file_exists`). Output:
+`{"id", "name", "saved_path", "stage_count"}`.
+
+Structured errors: `file_not_found`, `invalid_workflow_ref`, `fetch_failed`,
+`file_exists`, `write_failed`, `publish_failed`, plus all spec-validation codes.
+
 ## Notes & limits (v1)
 
 - JSON only; YAML rejected with a clear error (no new dependency for syntax sugar).

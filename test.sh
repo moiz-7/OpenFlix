@@ -2014,6 +2014,76 @@ else
     fail "BudgetManager spend lock missing"
 fi
 
+# ══════════════════════════════════════════════════════════
+# Phase 3 Wave 3: local ComfyUI provider (keyless, $0)
+# ══════════════════════════════════════════════════════════
+
+# ── 199. Local provider listed ──────────────────────────
+echo "199. Local: providers list shows local/comfyui"
+providers_out=$($BINARY providers list 2>&1 || true)
+if echo "$providers_out" | grep -q '"id":"local"' && echo "$providers_out" | grep -q '"comfyui"'; then
+    pass "providers list includes local (comfyui)"
+else
+    fail "local provider missing from providers list (got: $providers_out)"
+fi
+
+# ── 200. Local dry-run plans keyless at $0 ──────────────
+echo "200. Local: generate --provider local --dry-run (keyless, offline)"
+local_dry=$($BINARY generate "smoke test" --provider local --model comfyui --duration 5 --dry-run 2>&1 || true)
+if echo "$local_dry" | grep -q '"dry_run":true' && \
+   echo "$local_dry" | grep -q '"estimated_cost_usd":0' && \
+   echo "$local_dry" | grep -q '"provider":"local"'; then
+    pass "local dry-run plans without an API key at \$0"
+else
+    fail "local dry-run (got: $local_dry)"
+fi
+
+# ══════════════════════════════════════════════════════════
+# Phase 3 Wave 2: workflow publish/import (registry, offline)
+# ══════════════════════════════════════════════════════════
+
+# ── 201. Workflow publish/import commands exist ─────────
+echo "201. Workflow: publish + import subcommands exist"
+if $BINARY workflow publish --help 2>&1 | grep -qi "registry" && \
+   $BINARY workflow import --help 2>&1 | grep -qi "registry"; then
+    pass "workflow publish/import commands exist"
+else
+    fail "workflow publish/import commands missing"
+fi
+
+# ── 202. Workflow publish validates locally before network ─
+echo "202. Workflow: publish rejects invalid spec before any network"
+WF_BAD_SPEC=$(mktemp /tmp/openflix-test-badwf-XXXX.json)
+printf '{"name":"bad","stages":[]}' > "$WF_BAD_SPEC"
+# Unreachable registry proves the failure is the LOCAL validation gate.
+pub_out=$(env OPENFLIX_REGISTRY_URL=http://127.0.0.1:1 \
+    $BINARY workflow publish "$WF_BAD_SPEC" 2>&1 || true)
+rm -f "$WF_BAD_SPEC"
+if echo "$pub_out" | grep -q '"code":"empty_stages"'; then
+    pass "publish fails locally with empty_stages (no network needed)"
+else
+    fail "publish local validation gate (got: $pub_out)"
+fi
+
+# ── 203. Workflow import unreachable registry → structured error ─
+echo "203. Workflow: import with unreachable registry fails structured"
+imp_out=$(env OPENFLIX_REGISTRY_URL=http://127.0.0.1:1 \
+    $BINARY workflow import wf_does_not_exist 2>&1 || true)
+if echo "$imp_out" | grep -q '"code"' && echo "$imp_out" | grep -q '"error"'; then
+    pass "import emits structured error offline"
+else
+    fail "import structured error (got: $imp_out)"
+fi
+
+# ── 204. Workflow import rejects malformed references ────
+echo "204. Workflow: import rejects malformed reference"
+ref_out=$($BINARY workflow import "https://registry.openflix.app/recipes/oops" 2>&1 || true)
+if echo "$ref_out" | grep -q '"code":"invalid_workflow_ref"'; then
+    pass "import rejects non-workflow URL with invalid_workflow_ref"
+else
+    fail "import reference validation (got: $ref_out)"
+fi
+
 # ── Summary ─────────────────────────────────────────────
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="

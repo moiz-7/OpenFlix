@@ -8,7 +8,7 @@ struct WorkflowGroup: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "workflow",
         abstract: "Run declarative multi-stage generation pipelines",
-        subcommands: [WorkflowRun.self]
+        subcommands: [WorkflowRun.self, WorkflowPublish.self, WorkflowImport.self]
     )
 }
 
@@ -316,6 +316,211 @@ struct WorkflowRun: AsyncParsableCommand {
     }
 
     private func round4(_ v: Double) -> Double { (v * 10000).rounded() / 10000 }
+}
+
+// MARK: - workflow publish
+
+struct WorkflowPublish: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "publish",
+        abstract: "Publish a workflow file to the OpenFlix registry",
+        discussion: """
+        Validates the file locally (same rules as `workflow run`) BEFORE any
+        network call, then uploads it to the registry.
+
+        Authentication: pass --token, or set the OPENFLIX_REGISTRY_TOKEN
+        environment variable. Unauthenticated publishing is allowed when the
+        registry runs open (e.g. in dev).
+
+        EXAMPLES
+          openflix workflow publish film.json
+          openflix workflow publish film.json --name "My Film" --description "Two-stage spot"
+          openflix workflow publish film.json --token <registry-token>
+        """
+    )
+
+    @Argument(help: "Workflow file path (.json)")
+    var file: String
+
+    @Option(name: .long, help: "Workflow name (defaults to the spec's name)")
+    var name: String?
+
+    @Option(name: .long, help: "Workflow description")
+    var description: String?
+
+    @Option(name: .long, help: "Registry auth token (falls back to OPENFLIX_REGISTRY_TOKEN env var)")
+    var token: String?
+
+    @Flag(name: .long, help: "Pretty-print JSON output")
+    var pretty: Bool = false
+
+    mutating func run() async throws {
+        Output.pretty = pretty
+
+        let path = (file as NSString).expandingTildeInPath
+        guard let data = FileManager.default.contents(atPath: path) else {
+            Output.failMessage("Workflow file not found: \(path)", code: "file_not_found")
+        }
+
+        // Local validation gate — never post a spec that would not run.
+        let spec: WorkflowSpec
+        do { spec = try WorkflowParser.parse(data: data, path: path) }
+        catch let e as WorkflowSpecError {
+            Output.failMessage(e.errorDescription ?? "invalid workflow", code: e.code)
+        }
+
+        // The registry stores the raw file JSON as "spec" (field names are law).
+        guard let specJSON = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            Output.failMessage("Workflow file is not a JSON object", code: "invalid_workflow_file")
+        }
+
+        let effectiveName = WorkflowRegistryRef.effectiveName(flag: name, specName: spec.name)
+        do {
+            let (id, serverURL) = try await RegistryClient.publishWorkflow(
+                name: effectiveName,
+                description: description,
+                spec: specJSON,
+                token: RegistryClient.resolveToken(flagValue: token)
+            )
+            Output.emitDict([
+                "id": id,
+                "url": serverURL ?? "\(RegistryClient.baseURL)/workflows/\(id)",
+                "name": effectiveName,
+                "stage_count": spec.stages.count,
+            ])
+        } catch let error as OpenFlixError {
+            Output.fail(error)
+        } catch {
+            Output.failMessage("Failed to publish workflow: \(error.localizedDescription)", code: "publish_failed")
+        }
+    }
+}
+
+// MARK: - workflow import
+
+struct WorkflowImport: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        commandName: "import",
+        abstract: "Import a workflow from the OpenFlix registry",
+        discussion: """
+        Fetches a workflow by id (or full registry URL), validates the spec
+        locally, and saves it as a runnable workflow file
+        (default: <name>.workflow.json — refuses to overwrite without --force).
+
+        EXAMPLES
+          openflix workflow import wf_abc123
+          openflix workflow import https://registry.openflix.app/workflows/wf_abc123
+          openflix workflow import wf_abc123 --output film.json --force
+        """
+    )
+
+    @Argument(help: "Workflow id or full registry URL")
+    var reference: String
+
+    @Option(name: .long, help: "Output file path (default: <name>.workflow.json)")
+    var output: String?
+
+    @Flag(name: .long, help: "Overwrite the output file if it exists")
+    var force: Bool = false
+
+    @Flag(name: .long, help: "Pretty-print JSON output")
+    var pretty: Bool = false
+
+    mutating func run() async throws {
+        Output.pretty = pretty
+
+        guard let ref = WorkflowRegistryRef.resolve(reference, defaultBase: RegistryClient.baseURL) else {
+            Output.failMessage(
+                "Invalid workflow reference '\(reference)' — pass a workflow id or a full registry URL (…/workflows/<id>)",
+                code: "invalid_workflow_ref")
+        }
+
+        let wrapper: [String: Any]
+        do { wrapper = try await RegistryClient.fetchWorkflow(id: ref.id, base: ref.base) }
+        catch let error as OpenFlixError {
+            Output.fail(error)
+        } catch {
+            Output.failMessage("Failed to fetch workflow: \(error.localizedDescription)", code: "fetch_failed")
+        }
+
+        // Credit the registry's download counter — best-effort, never blocks
+        // or fails the import (contract: fire-and-forget).
+        await RegistryClient.creditWorkflowDownload(id: ref.id, base: ref.base)
+
+        guard let specJSON = wrapper["spec"] as? [String: Any],
+              let specData = try? JSONSerialization.data(withJSONObject: specJSON,
+                                                         options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]) else {
+            Output.failMessage("Registry response has no workflow spec", code: "invalid_response")
+        }
+
+        // Validation gate — never save a spec that would not parse for `workflow run`.
+        let spec: WorkflowSpec
+        do { spec = try WorkflowParser.parse(data: specData, path: "registry.json") }
+        catch let e as WorkflowSpecError {
+            Output.failMessage("Fetched workflow failed validation: \(e.errorDescription ?? e.code)", code: e.code)
+        }
+
+        let workflowName = wrapper["name"] as? String ?? spec.name
+        let outPath = ((output ?? WorkflowRegistryRef.defaultOutputFilename(name: workflowName))
+            as NSString).expandingTildeInPath
+        if FileManager.default.fileExists(atPath: outPath) && !force {
+            Output.failMessage("File already exists: \(outPath). Re-run with --force to overwrite.",
+                               code: "file_exists")
+        }
+        do { try specData.write(to: URL(fileURLWithPath: outPath)) }
+        catch {
+            Output.failMessage("Failed to write \(outPath): \(error.localizedDescription)", code: "write_failed")
+        }
+
+        Output.emitDict([
+            "id": ref.id,
+            "name": workflowName,
+            "saved_path": outPath,
+            "stage_count": spec.stages.count,
+        ])
+    }
+}
+
+// MARK: - Registry reference parsing (pure)
+
+enum WorkflowRegistryRef {
+
+    /// Resolve `<id-or-full-url>` to a registry base + workflow id.
+    /// - bare id            → (defaultBase, id); ids must not contain "/"
+    /// - full URL           → (scheme://host[:port], last path segment after
+    ///                        a "workflows" component: …/workflows/<id> or
+    ///                        …/api/workflows/<id>)
+    static func resolve(_ input: String, defaultBase: String) -> (base: String, id: String)? {
+        let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        if trimmed.hasPrefix("http://") || trimmed.hasPrefix("https://") {
+            guard let url = URL(string: trimmed),
+                  let scheme = url.scheme, let host = url.host else { return nil }
+            let parts = url.path.split(separator: "/").map(String.init)
+            guard let idx = parts.lastIndex(of: "workflows"), idx + 1 < parts.count else { return nil }
+            let base = url.port.map { "\(scheme)://\(host):\($0)" } ?? "\(scheme)://\(host)"
+            return (base: base, id: parts[idx + 1])
+        }
+
+        guard !trimmed.contains("/") else { return nil }
+        return (base: defaultBase, id: trimmed)
+    }
+
+    /// Default output filename: sanitized `<name>.workflow.json`.
+    static func defaultOutputFilename(name: String) -> String {
+        let sanitized = name.map { c -> Character in
+            (c.isLetter || c.isNumber || c == "-" || c == "_") ? c : "-"
+        }
+        let stem = String(sanitized).trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+        return (stem.isEmpty ? "workflow" : stem) + ".workflow.json"
+    }
+
+    /// Publish name: explicit flag wins, else the spec's name.
+    static func effectiveName(flag: String?, specName: String) -> String {
+        if let flag, !flag.trimmingCharacters(in: .whitespaces).isEmpty { return flag }
+        return specName
+    }
 }
 
 // MARK: - Resolved stage (plan entry)
