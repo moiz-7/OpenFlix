@@ -1,4 +1,5 @@
 import Foundation
+import OpenFlixKit
 
 // MARK: - Workflow file format (v1, JSON)
 //

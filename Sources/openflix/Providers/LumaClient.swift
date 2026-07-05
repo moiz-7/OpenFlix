@@ -1,4 +1,5 @@
 import Foundation
+import OpenFlixKit
 
 final class LumaClient: VideoProvider {
     let providerId = "luma"

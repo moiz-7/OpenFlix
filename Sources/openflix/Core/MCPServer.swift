@@ -1,4 +1,5 @@
 import Foundation
+import OpenFlixKit
 
 /// MCP server that communicates over stdio (stdin/stdout) using JSON-RPC 2.0.
 actor MCPServer {

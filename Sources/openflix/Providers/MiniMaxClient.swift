@@ -1,4 +1,5 @@
 import Foundation
+import OpenFlixKit
 
 /// MiniMax has a 3-step flow:
 /// 1. POST /v1/video_generation  → task_id

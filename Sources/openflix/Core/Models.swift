@@ -1,4 +1,5 @@
 import Foundation
+import OpenFlixKit
 
 // MARK: - Generation
 
@@ -69,35 +70,6 @@ struct CLIGeneration: Codable {
     }
 }
 
-// MARK: - Provider model
-
-struct CLIProviderModel: Codable {
-    let providerId: String
-    let providerName: String
-    let modelId: String
-    let displayName: String
-    let defaultWidth: Int?
-    let defaultHeight: Int?
-    let maxDurationSeconds: Double?
-    let costPerSecondUSD: Double?
-    let supportsImageToVideo: Bool
-
-    var jsonRepresentation: [String: Any] {
-        var d: [String: Any] = [
-            "provider_id":   providerId,
-            "provider_name": providerName,
-            "model_id":      modelId,
-            "display_name":  displayName,
-            "supports_i2v":  supportsImageToVideo,
-        ]
-        if let v = defaultWidth         { d["default_width"]           = v }
-        if let v = defaultHeight        { d["default_height"]          = v }
-        if let v = maxDurationSeconds   { d["max_duration_seconds"]    = v }
-        if let v = costPerSecondUSD     { d["cost_per_second_usd"]     = v }
-        return d
-    }
-}
-
 // MARK: - Provider error
 
 enum OpenFlixError: Error, LocalizedError {
@@ -159,6 +131,21 @@ enum OpenFlixError: Error, LocalizedError {
     /// Convert to structured error for MCP/agent consumption.
     var structured: StructuredError {
         StructuredError.from(self)
+    }
+}
+
+extension OpenFlixError {
+    /// Map a kit `ProviderError` (thrown by OpenFlixKit provider clients) to
+    /// the CLI error type. Codes are identical on both sides, so the JSON
+    /// stderr contract is unchanged. Applied at the provider call boundary
+    /// (GenerationEngine, StatusCommand, CancelCommand).
+    init(_ error: ProviderError) {
+        switch error {
+        case .httpError(let code, let message):     self = .httpError(code, message)
+        case .invalidResponse(let message):         self = .invalidResponse(message)
+        case .rateLimited(let p, let retryAfter):   self = .rateLimited(p, retryAfter: retryAfter)
+        case .cancelNotSupported(let p):            self = .cancelNotSupported(p)
+        }
     }
 }
 
@@ -293,29 +280,5 @@ struct StructuredError: Codable {
     }
 }
 
-// MARK: - Provider protocol types
-
-struct GenerationRequest {
-    let prompt: String
-    let negativePrompt: String?
-    let referenceImageURL: URL?
-    let model: String
-    let width: Int?
-    let height: Int?
-    let durationSeconds: Double?
-    let aspectRatio: String?
-    let extraParams: [String: Any]
-}
-
-struct GenerationSubmission {
-    let remoteTaskId: String
-    let statusURL: URL?
-    let estimatedCostUSD: Double?
-}
-
-enum PollStatus {
-    case queued
-    case processing(progress: Double?)
-    case succeeded(videoURL: URL)
-    case failed(message: String)
-}
+// The provider protocol types (CLIProviderModel, GenerationRequest,
+// GenerationSubmission, PollStatus) live in OpenFlixKit (ProviderModels.swift).

@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import OpenFlixKit
 
 struct Quickstart: ParsableCommand {
     static let configuration = CommandConfiguration(

@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import OpenFlixKit
 
 struct Providers: AsyncParsableCommand {
     static let configuration = CommandConfiguration(

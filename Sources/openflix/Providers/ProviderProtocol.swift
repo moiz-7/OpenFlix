@@ -1,31 +1,14 @@
 import Foundation
+import OpenFlixKit
 
-// MARK: - Provider protocol
-
-protocol VideoProvider: AnyObject {
-    var providerId: String { get }
-    var displayName: String { get }
-    var models: [CLIProviderModel] { get }
-
-    func submit(request: GenerationRequest, apiKey: String) async throws -> GenerationSubmission
-    func poll(taskId: String, statusURL: URL?, apiKey: String) async throws -> PollStatus
-    func estimateCost(durationSeconds: Double, modelId: String) -> Double?
-    func cancel(taskId: String, statusURL: URL?, apiKey: String) async throws
-}
-
-extension VideoProvider {
-    /// Providers without a remote cancel API get an explicit error, never a silent no-op.
-    func cancel(taskId: String, statusURL: URL?, apiKey: String) async throws {
-        throw OpenFlixError.cancelNotSupported(displayName)
-    }
-
-    /// Cost estimates resolve through the single pricing table
-    /// (Core/ModelPricing.swift) — providers do not carry their own copies.
-    func estimateCost(durationSeconds: Double, modelId: String) -> Double? {
-        ModelPricing.estimate(durationSeconds: durationSeconds,
-                              modelId: modelId, providerId: providerId)
-    }
-}
+// MARK: - Provider glue (CLI side)
+//
+// The `VideoProvider` protocol and its request/response types live in
+// OpenFlixKit (ProviderProtocol.swift there). This file keeps the CLI-side
+// glue: the provider registry (which providers ship in this binary is a CLI
+// decision) and the HTTP helpers used by the provider clients that still
+// live in the CLI — these throw the CLI's `OpenFlixError` so every command's
+// machine-readable error codes are unchanged.
 
 // MARK: - Registry
 
@@ -60,7 +43,7 @@ final class ProviderRegistry {
     }
 }
 
-// MARK: - HTTP helpers (shared)
+// MARK: - HTTP helpers (shared by CLI provider clients)
 
 extension URLSession {
     func jsonData(for request: URLRequest) async throws -> (Data, HTTPURLResponse) {

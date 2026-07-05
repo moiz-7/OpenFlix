@@ -1,4 +1,5 @@
 import XCTest
+import OpenFlixKit
 @testable import openflix
 
 final class PollParsingTests: XCTestCase {
@@ -86,15 +87,24 @@ final class PollParsingTests: XCTestCase {
         do {
             try await luma.cancel(taskId: "t1", statusURL: nil, apiKey: "k")
             XCTFail("Expected cancelNotSupported to be thrown")
-        } catch let error as OpenFlixError {
+        } catch let error as ProviderError {
+            // The default cancel lives in OpenFlixKit and throws ProviderError...
             guard case .cancelNotSupported(let provider) = error else {
                 return XCTFail("Expected .cancelNotSupported, got \(error)")
             }
             XCTAssertEqual(provider, "Luma")
             XCTAssertEqual(error.code, "cancel_not_supported")
             XCTAssertEqual(error.errorDescription, "cancel not supported by Luma")
+            // ...and the CLI boundary mapping preserves the exact JSON error shape.
+            let mapped = OpenFlixError(error)
+            guard case .cancelNotSupported(let mappedProvider) = mapped else {
+                return XCTFail("Expected mapped .cancelNotSupported, got \(mapped)")
+            }
+            XCTAssertEqual(mappedProvider, "Luma")
+            XCTAssertEqual(mapped.code, "cancel_not_supported")
+            XCTAssertEqual(mapped.errorDescription, "cancel not supported by Luma")
         } catch {
-            XCTFail("Expected OpenFlixError, got \(error)")
+            XCTFail("Expected ProviderError, got \(error)")
         }
     }
 }

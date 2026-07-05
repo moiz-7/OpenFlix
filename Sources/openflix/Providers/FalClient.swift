@@ -1,4 +1,5 @@
 import Foundation
+import OpenFlixKit
 
 final class FalClient: VideoProvider {
     let providerId = "fal"

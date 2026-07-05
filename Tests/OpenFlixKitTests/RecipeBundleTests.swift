@@ -1,5 +1,5 @@
 import XCTest
-@testable import openflix
+@testable import OpenFlixKit
 
 final class RecipeBundleTests: XCTestCase {
 
@@ -63,11 +63,5 @@ final class RecipeBundleTests: XCTestCase {
     func testDefaultFormatVersionIsTwo() {
         let bundle = RecipeBundle(exportedAt: Date(), author: nil, recipes: [])
         XCTAssertEqual(bundle.formatVersion, 2)
-    }
-
-    func testRegistryTokenResolutionPrefersFlag() {
-        XCTAssertEqual(RegistryClient.resolveToken(flagValue: "flag-token"), "flag-token")
-        // Empty flag is treated as absent — never returns an empty string
-        XCTAssertNotEqual(RegistryClient.resolveToken(flagValue: ""), "")
     }
 }

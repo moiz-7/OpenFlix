@@ -6,10 +6,10 @@ import Foundation
 /// cost estimates — do NOT add cost constants to provider files. The generic
 /// `estimateCost` lives on the `VideoProvider` protocol extension
 /// (ProviderProtocol.swift) and resolves through this table.
-enum ModelPricing {
+public enum ModelPricing {
 
     /// $/second by model id. Model ids are unique across providers.
-    static let costPerSecondUSD: [String: Double] = [
+    public static let costPerSecondUSD: [String: Double] = [
         // fal.ai
         "fal-ai/bytedance/seedance/v2/text-to-video":  0.05,
         "fal-ai/bytedance/seedance/v2/image-to-video": 0.06,
@@ -42,22 +42,22 @@ enum ModelPricing {
     ]
 
     /// Fallback $/second when a model is missing from the table.
-    static let providerFallbackUSD: [String: Double] = [
+    public static let providerFallbackUSD: [String: Double] = [
         "fal": 0.05, "replicate": 0.05, "runway": 0.05,
         "luma": 0.10, "kling": 0.05, "minimax": 0.05,
     ]
 
-    static let globalFallbackUSD = 0.05
+    public static let globalFallbackUSD = 0.05
 
     /// $/second for a model, falling back per provider, then globally.
-    static func costPerSecond(_ modelId: String, providerId: String) -> Double {
+    public static func costPerSecond(_ modelId: String, providerId: String) -> Double {
         costPerSecondUSD[modelId]
             ?? providerFallbackUSD[providerId]
             ?? globalFallbackUSD
     }
 
     /// Up-front estimate: $/second × duration.
-    static func estimate(durationSeconds: Double, modelId: String, providerId: String) -> Double {
+    public static func estimate(durationSeconds: Double, modelId: String, providerId: String) -> Double {
         costPerSecond(modelId, providerId: providerId) * durationSeconds
     }
 }
@@ -65,7 +65,7 @@ enum ModelPricing {
 extension CLIProviderModel {
     /// Model catalog entry with pricing sourced from ModelPricing — the only
     /// way provider clients should construct catalog entries.
-    static func priced(providerId: String, providerName: String,
+    public static func priced(providerId: String, providerName: String,
                        modelId: String, displayName: String,
                        defaultWidth: Int?, defaultHeight: Int?,
                        maxDurationSeconds: Double?,

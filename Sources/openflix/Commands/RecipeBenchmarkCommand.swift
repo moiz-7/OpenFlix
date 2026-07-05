@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import OpenFlixKit
 
 struct RecipeBenchmark: AsyncParsableCommand {
     static let configuration = CommandConfiguration(

@@ -1,5 +1,5 @@
 import XCTest
-@testable import openflix
+@testable import OpenFlixKit
 
 final class RecipeArgsTests: XCTestCase {
 
@@ -107,10 +107,10 @@ final class RecipeArgsTests: XCTestCase {
         }
     }
 
-    // MARK: - CLIRecipe substitution
+    // MARK: - Recipe substitution
 
     func testRecipeSubstitutingRewritesPromptNegativeAndParams() throws {
-        var recipe = CLIRecipe(name: "t", promptText: "a {{subject}} running",
+        var recipe = Recipe(name: "t", promptText: "a {{subject}} running",
                                negativePromptText: "no {{avoid}}")
         recipe.parametersJSON = #"{"camera": "{{subject}} cam", "seed": 42}"#
         let out = recipe.substituting(["subject": "fox", "avoid": "blur"])
@@ -184,7 +184,7 @@ final class RecipeArgsTests: XCTestCase {
                                    defaultValue: .string("fox"), choices: nil, description: nil)]
         exported.uses = [RecipeUse(recipeId: "base", args: nil)]
 
-        let imported = CLIRecipe(from: exported)
+        let imported = Recipe(from: exported)
         XCTAssertEqual(imported.args?.count, 1)
         XCTAssertEqual(imported.uses?.first?.recipeId, "base")
 

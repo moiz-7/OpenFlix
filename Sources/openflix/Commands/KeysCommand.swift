@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import OpenFlixKit
 import Security
 
 struct Keys: AsyncParsableCommand {
