@@ -6,7 +6,7 @@ struct Delete: AsyncParsableCommand {
         commandName: "delete",
         abstract: "Delete a generation from local history",
         discussion: """
-        Removes a generation record from ~/.openflix/store.json.
+        Removes a generation record from ~/.openflix/generations/.
         This does not cancel remote jobs or delete downloaded files.
 
         EXAMPLES

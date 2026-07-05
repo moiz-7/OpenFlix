@@ -181,6 +181,10 @@ struct Shot: Codable {
     var createdAt: Date
     var startedAt: Date?
     var completedAt: Date?
+    // Workflow-engine extensions (all optional — old persisted projects decode fine)
+    var fanout: Int?                     // generate N candidates via scatter-gather
+    var judge: JudgeSpec?                // keep top K candidates by quality score
+    var keptGenerationIds: [String]?     // judge output: kept candidates, best first
 
     enum ShotStatus: String, Codable, CaseIterable {
         case pending, ready, dispatched, processing, evaluating
@@ -222,6 +226,13 @@ struct Shot: Codable {
         if qualityRetryCount > 0        { d["quality_retry_count"] = qualityRetryCount }
         if let v = startedAt            { d["started_at"] = iso8601(v) }
         if let v = completedAt          { d["completed_at"] = iso8601(v) }
+        if let v = fanout               { d["fanout"] = v }
+        if let j = judge {
+            var jd: [String: Any] = ["keep": j.keep]
+            if let m = j.minScore { jd["min_score"] = m }
+            d["judge"] = jd
+        }
+        if let v = keptGenerationIds    { d["kept_generation_ids"] = v }
         return d
     }
 

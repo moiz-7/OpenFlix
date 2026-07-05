@@ -75,6 +75,11 @@ actor DAGExecutor {
     private let maxRetriesPerShot: Int
     let qualityConfig: QualityConfig
     private var cancelled = false
+    // Run journal (step 1 of the agentic engine): one record per node,
+    // written incrementally (after each node) and atomically.
+    private let journal: RunJournal?
+    private let runId: String?
+    private let nodeHashes: [String: String]  // shot name → inputs hash
 
     init(
         projectId: String,
@@ -85,7 +90,10 @@ actor DAGExecutor {
         skipDownload: Bool = false,
         timeout: Double = 600,
         maxRetriesPerShot: Int = 2,
-        qualityConfig: QualityConfig = QualityConfig()
+        qualityConfig: QualityConfig = QualityConfig(),
+        journal: RunJournal? = nil,
+        runId: String? = nil,
+        nodeHashes: [String: String] = [:]
     ) {
         self.projectId = projectId
         self.store = store
@@ -96,6 +104,9 @@ actor DAGExecutor {
         self.timeout = timeout
         self.maxRetriesPerShot = maxRetriesPerShot
         self.qualityConfig = qualityConfig
+        self.journal = journal
+        self.runId = runId
+        self.nodeHashes = nodeHashes
     }
 
     func execute() async throws -> Project {
@@ -143,6 +154,9 @@ actor DAGExecutor {
                 for shot in toDispatch {
                     group.addTask { [self] in
                         await self.executeShot(shot, project: currentProject)
+                        // Journal choke point: record the node's final state
+                        // right after it finishes (incremental, atomic).
+                        await self.journalNode(shotId: shot.id)
                     }
                 }
             }
@@ -246,15 +260,122 @@ actor DAGExecutor {
             }
         }
 
-        // Scatter-gather or single dispatch
+        // Fanout / scatter-gather / single dispatch
         let maxRetries = shot.maxRetries ?? maxRetriesPerShot
 
-        if project.settings.routingStrategy == .scatterGather,
+        if let fanout = shot.fanout, fanout > 1 {
+            await executeFanoutShot(shot: shot, count: fanout, providerID: providerID, modelID: modelID)
+        } else if project.settings.routingStrategy == .scatterGather,
            let count = project.settings.scatterCount, count > 1 {
             await executeScatterGather(shot: shot, count: count, providerID: providerID, modelID: modelID)
         } else {
             await executeSingleShot(shot: shot, providerID: providerID, modelID: modelID, maxRetries: maxRetries)
         }
+    }
+
+    /// Workflow fanout: N candidates from the SAME provider/model via the
+    /// existing scatter executor, then judge with the existing evaluator
+    /// machinery and keep the top K (JudgeSelector is the pure part).
+    private func executeFanoutShot(shot: Shot, count: Int, providerID: String, modelID: String) async {
+        let targets = Array(repeating: (provider: providerID, model: modelID), count: count)
+        let options = GenerationEngine.Options(
+            pollInterval: 3,
+            timeout: timeout,
+            outputURL: nil,
+            stream: stream,
+            skipDownload: skipDownload,
+            maxRetries: 0
+        )
+
+        store.updateShot(projectId: projectId, shotId: shot.id) { $0.status = .processing }
+
+        let results = await ScatterGatherExecutor.scatter(
+            shot: shot, targets: targets, apiKey: apiKey, options: options
+        )
+
+        for r in results where !r.generationId.isEmpty {
+            GenerationStore.shared.update(id: r.generationId) { g in
+                g.projectId = projectId
+                g.shotId = shot.id
+            }
+        }
+
+        let succeeded = results.filter { $0.status == "succeeded" && !$0.generationId.isEmpty }
+        guard !succeeded.isEmpty else {
+            let errors = results.compactMap { $0.errorMessage }.joined(separator: "; ")
+            markShotFailed(shot.id, error: "All \(count) fanout candidates failed: \(errors)")
+            return
+        }
+
+        // Judge: score candidates with the existing quality-gate machinery.
+        var candidates: [JudgeSelector.Candidate] = []
+        if shot.judge != nil || qualityConfig.enabled {
+            store.updateShot(projectId: projectId, shotId: shot.id) { $0.status = .evaluating }
+            var evalConfig = qualityConfig
+            evalConfig.enabled = true
+            for r in succeeded {
+                var score: Double?
+                if let gen = GenerationStore.shared.get(r.generationId),
+                   let videoPath = gen.localPath {
+                    if let result = try? await QualityGate.evaluate(
+                        generation: gen, videoPath: videoPath, shot: shot, config: evalConfig
+                    ) {
+                        score = result.score
+                    }
+                }
+                candidates.append(.init(id: r.generationId, score: score))
+            }
+        } else {
+            candidates = succeeded.map { .init(id: $0.generationId, score: nil) }
+        }
+
+        let keep = shot.judge?.keep ?? 1
+        let kept = JudgeSelector.selectTopK(candidates, keep: keep, minScore: shot.judge?.minScore)
+
+        guard let best = kept.first else {
+            let bestScore = candidates.compactMap { $0.score }.max()
+            let detail = bestScore.map { String(format: "best score %.1f", $0) } ?? "no candidates scored"
+            markShotFailed(shot.id, error: "Judge rejected all \(succeeded.count) candidates (min_score \(shot.judge?.minScore ?? 0), \(detail))")
+            return
+        }
+
+        store.updateShot(projectId: projectId, shotId: shot.id) { s in
+            s.status = .succeeded
+            s.generationIds = results.filter { !$0.generationId.isEmpty }.map { $0.generationId }
+            s.keptGenerationIds = kept.map { $0.id }
+            s.selectedGenerationId = best.id
+            s.qualityScore = best.score
+            s.actualCostUSD = results.compactMap { $0.costUSD }.reduce(0, +)
+            s.completedAt = Date()
+        }
+        if stream {
+            var evt: [String: Any] = ["event": "shot.succeeded", "project_id": projectId,
+                                      "shot_id": shot.id, "shot_name": shot.name,
+                                      "generation_id": best.id,
+                                      "fanout": count, "kept": kept.count,
+                                      "timestamp": now()]
+            if let s = best.score { evt["quality_score"] = s }
+            Output.emitEvent(evt)
+        }
+    }
+
+    /// Write the node's final state to the run journal (no-op without journal).
+    private func journalNode(shotId: String) {
+        guard let journal, let runId,
+              let shot = store.get(projectId)?.allShots.first(where: { $0.id == shotId }) else { return }
+        let hash = nodeHashes[shot.name] ?? RunJournal.inputsHash(for: shot)
+        let outputPath = shot.selectedGenerationId
+            .flatMap { GenerationStore.shared.get($0)?.localPath }
+        journal.upsertNode(runId: runId, NodeRecord(
+            nodeId: shot.name,
+            inputsHash: hash,
+            status: shot.status.rawValue,
+            generationId: shot.selectedGenerationId,
+            outputPath: outputPath,
+            costUSD: shot.actualCostUSD,
+            startedAt: shot.startedAt,
+            completedAt: shot.completedAt
+        ))
     }
 
     private func executeSingleShot(shot: Shot, providerID: String, modelID: String, maxRetries: Int) async {

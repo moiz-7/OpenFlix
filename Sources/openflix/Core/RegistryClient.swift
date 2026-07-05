@@ -81,6 +81,23 @@ enum RegistryClient {
         return array
     }
 
+    /// Fetch the aggregate preference summary used by smart routing.
+    /// Returns raw data so callers can cache the exact payload.
+    static func fetchPreferenceSummaryData(category: String? = nil) async throws -> Data {
+        guard var components = URLComponents(string: "\(baseURL)/api/preferences/summary") else {
+            throw OpenFlixError.invalidResponse("Invalid registry URL: \(baseURL)/api/preferences/summary")
+        }
+        if let category, !category.isEmpty {
+            components.queryItems = [URLQueryItem(name: "category", value: category)]
+        }
+        guard let url = components.url else {
+            throw OpenFlixError.invalidResponse("Failed to construct preference summary URL")
+        }
+        let session = makeSession()
+        let (data, _) = try await session.jsonData(for: URLRequest(url: url))
+        return data
+    }
+
     /// Publish benchmark results to the registry.
     static func publishBenchmark(results: [String: Any], author: String? = nil, token: String? = nil) async throws -> (id: String, url: String) {
         var body = results

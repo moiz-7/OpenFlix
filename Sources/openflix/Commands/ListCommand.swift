@@ -5,7 +5,7 @@ struct List: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         abstract: "List generation history",
         discussion: """
-        Lists all generations stored in ~/.openflix/store.json.
+        Lists all generations stored in ~/.openflix/generations/.
 
         EXAMPLES
           openflix list

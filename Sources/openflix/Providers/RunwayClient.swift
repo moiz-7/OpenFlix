@@ -6,12 +6,12 @@ final class RunwayClient: VideoProvider {
     private let apiVersion = "2024-11-06"
 
     let models: [CLIProviderModel] = [
-        CLIProviderModel(providerId: "runway", providerName: "Runway",
+        .priced(providerId: "runway", providerName: "Runway",
             modelId: "gen4_turbo", displayName: "Gen-4 Turbo",
-            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 10, costPerSecondUSD: 0.05, supportsImageToVideo: true),
-        CLIProviderModel(providerId: "runway", providerName: "Runway",
+            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 10, supportsImageToVideo: true),
+        .priced(providerId: "runway", providerName: "Runway",
             modelId: "gen4.5", displayName: "Gen-4.5",
-            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 10, costPerSecondUSD: 0.10, supportsImageToVideo: true),
+            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 10, supportsImageToVideo: true),
     ]
 
     private let session = makeSession()
@@ -88,10 +88,6 @@ final class RunwayClient: VideoProvider {
         }
     }
 
-    func estimateCost(durationSeconds: Double, modelId: String) -> Double? {
-        let cps = models.first { $0.modelId == modelId }?.costPerSecondUSD ?? 0.05
-        return cps * durationSeconds
-    }
 
     func cancel(taskId: String, statusURL: URL?, apiKey: String) async throws {
         var urlReq = URLRequest(url: base.appendingPathComponent("tasks/\(taskId)"))

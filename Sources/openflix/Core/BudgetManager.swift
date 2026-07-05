@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 
 /// Manages daily and per-generation cost limits for autonomous agent use.
 actor BudgetManager {
@@ -21,6 +22,7 @@ actor BudgetManager {
 
     private let configURL: URL
     private let spendURL: URL
+    private let spendLockURL: URL
     private var cachedConfig: BudgetConfig?
     private var cachedHistory: [String: DailySpend]?
 
@@ -30,6 +32,22 @@ actor BudgetManager {
             ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".openflix")
         configURL = base.appendingPathComponent("budget_config.json")
         spendURL = base.appendingPathComponent("daily_spend.json")
+        spendLockURL = base.appendingPathComponent("daily_spend.lock")
+    }
+
+    // MARK: - File lock (cross-process)
+
+    /// daily_spend.json is written by every openflix process that records
+    /// spend (CLI runs, daemon, MCP server). flock() around read-modify-write
+    /// prevents concurrent processes from losing each other's increments.
+    private func withSpendFileLock<T>(_ body: () throws -> T) rethrows -> T {
+        try? FileManager.default.createDirectory(
+            at: spendLockURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let fd = open(spendLockURL.path, O_CREAT | O_RDWR, 0o644)
+        guard fd >= 0 else { return try body() }
+        flock(fd, LOCK_EX)
+        defer { flock(fd, LOCK_UN); close(fd) }
+        return try body()
     }
 
     // MARK: - Config
@@ -135,10 +153,15 @@ actor BudgetManager {
     // MARK: - Record spend
 
     func recordSpend(amount: Double) {
-        var spend = loadSpend()
-        spend.totalUSD += amount
-        spend.generationCount += 1
-        try? saveSpend(spend)
+        withSpendFileLock {
+            // Re-read inside the lock — another process may have recorded
+            // spend since our cache was populated.
+            cachedHistory = nil
+            var spend = loadSpend()
+            spend.totalUSD += amount
+            spend.generationCount += 1
+            try? saveSpend(spend)
+        }
     }
 
     func currentSpend() -> DailySpend {
@@ -153,8 +176,11 @@ actor BudgetManager {
     }
 
     func resetDailySpend() throws {
-        let fresh = DailySpend(date: todayString(), totalUSD: 0, generationCount: 0)
-        try saveSpend(fresh)
+        try withSpendFileLock {
+            cachedHistory = nil
+            let fresh = DailySpend(date: todayString(), totalUSD: 0, generationCount: 0)
+            try saveSpend(fresh)
+        }
     }
 
     // MARK: - Monthly spend

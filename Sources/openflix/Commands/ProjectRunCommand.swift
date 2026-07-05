@@ -94,6 +94,25 @@ struct ProjectRun: AsyncParsableCommand {
             qConfig.evaluator = evalType
         }
 
+        // Every project run writes a run journal (~/.openflix/runs/<run-id>.json)
+        let journal = RunJournal()
+        let runId = UUID().uuidString
+        var initialNodes: [String: NodeRecord] = [:]
+        if let p = ProjectStore.shared.get(projectId) {
+            for shot in p.allShots {
+                initialNodes[shot.name] = NodeRecord(
+                    nodeId: shot.name,
+                    inputsHash: RunJournal.inputsHash(for: shot),
+                    status: shot.status == .succeeded ? "succeeded" : "pending",
+                    generationId: shot.selectedGenerationId,
+                    outputPath: nil, costUSD: shot.actualCostUSD,
+                    startedAt: shot.startedAt, completedAt: shot.completedAt
+                )
+            }
+        }
+        _ = journal.create(runId: runId, kind: "project", name: project.name,
+                           projectId: projectId, nodes: initialNodes)
+
         let executor = DAGExecutor(
             projectId: projectId,
             maxConcurrency: maxConc,
@@ -102,12 +121,16 @@ struct ProjectRun: AsyncParsableCommand {
             skipDownload: skipDownload,
             timeout: project.settings.timeoutPerShot,
             maxRetriesPerShot: project.settings.maxRetriesPerShot,
-            qualityConfig: qConfig
+            qualityConfig: qConfig,
+            journal: journal,
+            runId: runId
         )
 
         do {
             let result = try await executor.execute()
-            Output.emitDict(result.jsonRepresentation)
+            var out = result.jsonRepresentation
+            out["run_id"] = runId
+            Output.emitDict(out)
         } catch let error as OpenFlixError {
             Output.fail(error)
         } catch let error as ProjectSpecError {

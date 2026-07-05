@@ -114,6 +114,7 @@ enum OpenFlixError: Error, LocalizedError {
     case budgetExceeded(String)
     case promptBlocked([String])
     case cancelNotSupported(String)
+    case hookVeto(String)
 
     var errorDescription: String? {
         switch self {
@@ -132,6 +133,7 @@ enum OpenFlixError: Error, LocalizedError {
         case .budgetExceeded(let reason): return "Budget exceeded: \(reason)"
         case .promptBlocked(let flags):   return "Prompt blocked: \(flags.joined(separator: ", "))"
         case .cancelNotSupported(let p):  return "cancel not supported by \(p)"
+        case .hookVeto(let detail):       return "Generation vetoed by pre-generate hook: \(detail)"
         }
     }
 
@@ -150,6 +152,7 @@ enum OpenFlixError: Error, LocalizedError {
         case .budgetExceeded:    return "budget_exceeded"
         case .promptBlocked:     return "prompt_blocked"
         case .cancelNotSupported: return "cancel_not_supported"
+        case .hookVeto:          return "hook_veto"
         }
     }
 
@@ -188,6 +191,7 @@ enum ErrorCode: String, Codable {
     case internalError = "INTERNAL_ERROR"
     case configInvalid = "CONFIG_INVALID"
     case notComplete = "NOT_COMPLETE"
+    case hookVeto = "HOOK_VETO"
 
     var retryable: Bool {
         switch self {
@@ -210,6 +214,7 @@ enum ErrorCode: String, Codable {
         case .generationNotFound, .notComplete: return 404
         case .generationFailed, .downloadFailed, .diskFull, .qualityBelowThreshold: return 500
         case .internalError: return 500
+        case .hookVeto: return 403
         }
     }
 }
@@ -264,6 +269,9 @@ struct StructuredError: Codable {
         case .cancelNotSupported(let p):
             return StructuredError(code: .inputInvalid, message: error.errorDescription ?? "",
                                    details: ["provider": .string(p)], retryable: false, retryAfterSeconds: nil)
+        case .hookVeto(let detail):
+            return StructuredError(code: .hookVeto, message: error.errorDescription ?? "",
+                                   details: ["hook_stderr": .string(detail)], retryable: false, retryAfterSeconds: nil)
         }
     }
 

@@ -1,0 +1,240 @@
+import Foundation
+
+// MARK: - Recipe args (formatVersion 3)
+//
+// v3 recipes may declare typed arguments; `{{name}}` placeholders in
+// promptText / negativePromptText / parameter values are substituted at run
+// time from `--arg name=value` flags (or workflow stage `args`), falling back
+// to declared defaults. v2 bundles (no args) decode and behave exactly as
+// before.
+
+/// A declared value that may be a JSON string or number (`default` in arg
+/// specs, values in `uses.args`).
+enum RecipeArgValue: Codable, Equatable {
+    case string(String)
+    case number(Double)
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let s = try? container.decode(String.self) {
+            self = .string(s)
+        } else if let n = try? container.decode(Double.self) {
+            self = .number(n)
+        } else {
+            throw DecodingError.dataCorruptedError(
+                in: container, debugDescription: "Expected a string or a number")
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .string(let s): try container.encode(s)
+        case .number(let n): try container.encode(n)
+        }
+    }
+
+    /// Rendered form used for `{{name}}` substitution. Whole numbers drop the
+    /// trailing ".0" so `duration: 8` renders as "8", not "8.0".
+    var stringValue: String {
+        switch self {
+        case .string(let s): return s
+        case .number(let n):
+            if n == n.rounded() && abs(n) < 1e15 { return String(Int(n)) }
+            return String(n)
+        }
+    }
+}
+
+/// One declared recipe argument (formatVersion 3).
+struct RecipeArg: Codable, Equatable {
+    var name: String
+    var type: String              // "string" | "number" | "enum"
+    var defaultValue: RecipeArgValue?
+    var choices: [String]?        // enum only
+    var description: String?
+
+    enum CodingKeys: String, CodingKey {
+        case name, type, choices, description
+        case defaultValue = "default"
+    }
+}
+
+/// A composition reference: this recipe uses another recipe with fixed args.
+/// Declared metadata in v1 — operationally, composition runs through workflow
+/// stages (`"recipe": "<recipe-id>"`), not recursive recipe execution.
+struct RecipeUse: Codable, Equatable {
+    var recipeId: String
+    var args: [String: RecipeArgValue]?
+}
+
+// MARK: - Errors
+
+enum RecipeArgError: Error, LocalizedError {
+    case missingArg(String)
+    case unknownArg(String)
+    case invalidNumber(name: String, value: String)
+    case invalidChoice(name: String, value: String, choices: [String])
+    case invalidSpec(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .missingArg(let name):
+            return "Missing required arg '\(name)' (no default declared). Pass --arg \(name)=<value>."
+        case .unknownArg(let name):
+            return "Unknown arg '\(name)' — the recipe does not declare it."
+        case .invalidNumber(let name, let value):
+            return "Arg '\(name)' expects a number, got '\(value)'."
+        case .invalidChoice(let name, let value, let choices):
+            return "Arg '\(name)' must be one of [\(choices.joined(separator: ", "))], got '\(value)'."
+        case .invalidSpec(let m):
+            return "Invalid arg spec: \(m)"
+        }
+    }
+
+    var code: String {
+        switch self {
+        case .missingArg:    return "missing_arg"
+        case .unknownArg:    return "unknown_arg"
+        case .invalidNumber: return "invalid_number"
+        case .invalidChoice: return "invalid_choice"
+        case .invalidSpec:   return "invalid_arg_spec"
+        }
+    }
+}
+
+// MARK: - Resolver (pure)
+
+enum RecipeArgResolver {
+
+    static let validTypes: Set<String> = ["string", "number", "enum"]
+
+    /// Structural validation of a declared arg list.
+    static func validate(_ args: [RecipeArg]) throws {
+        var seen = Set<String>()
+        for arg in args {
+            guard !arg.name.isEmpty else {
+                throw RecipeArgError.invalidSpec("arg name cannot be empty")
+            }
+            guard seen.insert(arg.name).inserted else {
+                throw RecipeArgError.invalidSpec("duplicate arg '\(arg.name)'")
+            }
+            guard validTypes.contains(arg.type) else {
+                throw RecipeArgError.invalidSpec(
+                    "arg '\(arg.name)' has unknown type '\(arg.type)' (expected string, number, or enum)")
+            }
+            if arg.type == "enum" {
+                guard let choices = arg.choices, !choices.isEmpty else {
+                    throw RecipeArgError.invalidSpec("enum arg '\(arg.name)' requires non-empty choices")
+                }
+            } else if arg.choices != nil {
+                throw RecipeArgError.invalidSpec("arg '\(arg.name)': choices are only allowed for enum args")
+            }
+            if let def = arg.defaultValue {
+                try checkValue(def.stringValue, for: arg)
+            }
+        }
+    }
+
+    /// Resolve final substitution values: provided values (from repeated
+    /// `--arg name=value` flags or workflow stage `args`) win, declared
+    /// defaults fill the gaps, and a missing arg with no default is a
+    /// structured `missing_arg` error. Unknown provided names are rejected.
+    static func resolve(args: [RecipeArg], provided: [String: String]) throws -> [String: String] {
+        try validate(args)
+        let declared = Set(args.map(\.name))
+        for name in provided.keys.sorted() where !declared.contains(name) {
+            throw RecipeArgError.unknownArg(name)
+        }
+        var values: [String: String] = [:]
+        for arg in args {
+            if let v = provided[arg.name] {
+                try checkValue(v, for: arg)
+                values[arg.name] = v
+            } else if let def = arg.defaultValue {
+                values[arg.name] = def.stringValue
+            } else {
+                throw RecipeArgError.missingArg(arg.name)
+            }
+        }
+        return values
+    }
+
+    /// Parse repeated `--arg name=value` flags. The value may contain `=`.
+    static func parseArgFlags(_ flags: [String]) throws -> [String: String] {
+        var provided: [String: String] = [:]
+        for flag in flags {
+            let parts = flag.split(separator: "=", maxSplits: 1).map(String.init)
+            guard parts.count == 2, !parts[0].isEmpty else {
+                throw RecipeArgError.invalidSpec("--arg expects name=value, got '\(flag)'")
+            }
+            provided[parts[0]] = parts[1]
+        }
+        return provided
+    }
+
+    /// Replace exact `{{name}}` placeholders. Placeholders without a matching
+    /// value are left untouched (v2 recipes with literal braces are unaffected).
+    static func substitute(_ text: String, values: [String: String]) -> String {
+        guard !values.isEmpty, text.contains("{{") else { return text }
+        var out = text
+        for (name, value) in values {
+            out = out.replacingOccurrences(of: "{{\(name)}}", with: value)
+        }
+        return out
+    }
+
+    private static func checkValue(_ value: String, for arg: RecipeArg) throws {
+        switch arg.type {
+        case "number":
+            guard Double(value) != nil else {
+                throw RecipeArgError.invalidNumber(name: arg.name, value: value)
+            }
+        case "enum":
+            let choices = arg.choices ?? []
+            guard choices.contains(value) else {
+                throw RecipeArgError.invalidChoice(name: arg.name, value: value, choices: choices)
+            }
+        default:
+            break
+        }
+    }
+}
+
+// MARK: - CLIRecipe substitution
+
+extension CLIRecipe {
+
+    /// Return a copy with `{{name}}` placeholders resolved in promptText,
+    /// negativePromptText, and string parameter values.
+    func substituting(_ values: [String: String]) -> CLIRecipe {
+        guard !values.isEmpty else { return self }
+        var recipe = self
+        recipe.promptText = RecipeArgResolver.substitute(promptText, values: values)
+        recipe.negativePromptText = RecipeArgResolver.substitute(negativePromptText, values: values)
+        if let json = parametersJSON, let data = json.data(using: .utf8),
+           let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            var out: [String: Any] = [:]
+            for (key, value) in dict {
+                if let s = value as? String {
+                    out[key] = RecipeArgResolver.substitute(s, values: values)
+                } else {
+                    out[key] = value
+                }
+            }
+            if let outData = try? JSONSerialization.data(withJSONObject: out) {
+                recipe.parametersJSON = String(data: outData, encoding: .utf8)
+            }
+        }
+        return recipe
+    }
+
+    /// parametersJSON as a string map (non-string values rendered with "\()").
+    func parameterStrings() -> [String: String] {
+        guard let json = parametersJSON, let data = json.data(using: .utf8),
+              let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return [:]
+        }
+        return dict.mapValues { "\($0)" }
+    }
+}

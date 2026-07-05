@@ -11,15 +11,15 @@ final class MiniMaxClient: VideoProvider {
     let displayName = "MiniMax"
 
     let models: [CLIProviderModel] = [
-        CLIProviderModel(providerId: "minimax", providerName: "MiniMax",
+        .priced(providerId: "minimax", providerName: "MiniMax",
             modelId: "MiniMax-Hailuo-2.3", displayName: "Hailuo 2.3",
-            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 10, costPerSecondUSD: 0.05, supportsImageToVideo: false),
-        CLIProviderModel(providerId: "minimax", providerName: "MiniMax",
+            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 10, supportsImageToVideo: false),
+        .priced(providerId: "minimax", providerName: "MiniMax",
             modelId: "T2V-01-Director", displayName: "T2V-01 Director",
-            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 6, costPerSecondUSD: 0.04, supportsImageToVideo: false),
-        CLIProviderModel(providerId: "minimax", providerName: "MiniMax",
+            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 6, supportsImageToVideo: false),
+        .priced(providerId: "minimax", providerName: "MiniMax",
             modelId: "S2V-01", displayName: "S2V-01 (I2V)",
-            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 6, costPerSecondUSD: 0.05, supportsImageToVideo: true),
+            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 6, supportsImageToVideo: true),
     ]
 
     private let session = makeSession()
@@ -109,8 +109,4 @@ final class MiniMaxClient: VideoProvider {
         }
     }
 
-    func estimateCost(durationSeconds: Double, modelId: String) -> Double? {
-        let cps = models.first { $0.modelId == modelId }?.costPerSecondUSD ?? 0.05
-        return cps * durationSeconds
-    }
 }

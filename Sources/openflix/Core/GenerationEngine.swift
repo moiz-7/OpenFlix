@@ -36,6 +36,22 @@ final class GenerationEngine {
             throw OpenFlixError.promptBlocked(safety.flags)
         }
 
+        // Pre-generate hook (single choke point for ALL generation paths:
+        // generate, batch, project shots, scatter-gather, workflow nodes).
+        // Hook file: ~/.openflix/hooks/pre-generate — see HookRunner.swift.
+        var hookSpec: [String: Any] = [
+            "prompt": prompt,
+            "provider": providerID,
+            "model": model,
+        ]
+        if let v = negativePrompt   { hookSpec["negative_prompt"] = v }
+        if let v = durationSeconds  { hookSpec["duration_seconds"] = v }
+        if let v = aspectRatio      { hookSpec["aspect_ratio"] = v }
+        if let v = width            { hookSpec["width"] = v }
+        if let v = height           { hookSpec["height"] = v }
+        if let v = referenceImageURL { hookSpec["reference_image_url"] = v.absoluteString }
+        try HookRunner.runPreGenerate(spec: hookSpec)
+
         let request = GenerationRequest(
             prompt: prompt,
             negativePrompt: negativePrompt,
@@ -66,7 +82,7 @@ final class GenerationEngine {
 
         let submission = try await provider.submit(request: request, apiKey: key)
 
-        var gen = CLIGeneration(
+        let gen = CLIGeneration(
             id: UUID().uuidString,
             status: .submitted,
             provider: providerID,
@@ -265,6 +281,8 @@ final class GenerationEngine {
                             "actual_cost_usd": gen.actualCostUSD as Any, "timestamp": now()])
                     }
                 }
+                // Post-generate hook (best-effort; never fails the run).
+                HookRunner.runPostGenerate(result: gen.jsonRepresentation)
                 return gen
 
             case .failed(let message):
@@ -279,6 +297,8 @@ final class GenerationEngine {
                 if options.stream {
                     Output.emitEvent(["event": "failed", "id": gen.id, "error": message, "timestamp": now()])
                 }
+                // Post-generate hook fires on terminal outcomes too.
+                HookRunner.runPostGenerate(result: gen.jsonRepresentation)
                 throw OpenFlixError.generationFailed(message)
             }
         }

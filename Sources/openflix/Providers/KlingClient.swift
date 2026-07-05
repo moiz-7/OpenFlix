@@ -5,15 +5,15 @@ final class KlingClient: VideoProvider {
     let displayName = "Kling"
 
     let models: [CLIProviderModel] = [
-        CLIProviderModel(providerId: "kling", providerName: "Kling",
+        .priced(providerId: "kling", providerName: "Kling",
             modelId: "kling-v2.6-pro", displayName: "Kling v2.6 Pro",
-            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 10, costPerSecondUSD: 0.10, supportsImageToVideo: true),
-        CLIProviderModel(providerId: "kling", providerName: "Kling",
+            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 10, supportsImageToVideo: true),
+        .priced(providerId: "kling", providerName: "Kling",
             modelId: "kling-v2.6-std", displayName: "Kling v2.6 Standard",
-            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 10, costPerSecondUSD: 0.05, supportsImageToVideo: true),
-        CLIProviderModel(providerId: "kling", providerName: "Kling",
+            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 10, supportsImageToVideo: true),
+        .priced(providerId: "kling", providerName: "Kling",
             modelId: "kling-v2.5-turbo", displayName: "Kling v2.5 Turbo",
-            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 5, costPerSecondUSD: 0.03, supportsImageToVideo: true),
+            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 5, supportsImageToVideo: true),
     ]
 
     private let session = makeSession()
@@ -87,8 +87,4 @@ final class KlingClient: VideoProvider {
         }
     }
 
-    func estimateCost(durationSeconds: Double, modelId: String) -> Double? {
-        let cps = models.first { $0.modelId == modelId }?.costPerSecondUSD ?? 0.05
-        return cps * durationSeconds
-    }
 }

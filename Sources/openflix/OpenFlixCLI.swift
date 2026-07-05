@@ -52,12 +52,13 @@ struct OpenFlix: AsyncParsableCommand {
           openflix batch --file shots.json --wait --concurrency 4
 
         DATA STORAGE
-          ~/.openflix/store.json       Generation history
+          ~/.openflix/generations/     Generation history (one JSON file per record)
           ~/.openflix/downloads/       Downloaded videos
           ~/.openflix/projects/        Project data
         """,
         version: "1.0.0",
         subcommands: [
+            Quickstart.self,
             Generate.self,
             Status.self,
             List.self,
@@ -81,6 +82,7 @@ struct OpenFlix: AsyncParsableCommand {
             MCP.self,
             RecipeGroup.self,
             Compare.self,
+            WorkflowGroup.self,
         ]
     )
 }

@@ -20,6 +20,9 @@ struct Generate: AsyncParsableCommand {
           # Specify output file:
           openflix generate "..." --provider replicate --model minimax/video-01-live \\
               --wait --output ~/videos/result.mp4
+
+          # Smart routing: auto-pick provider/model from community preference data
+          openflix generate "..." --route smart --category cinematic --wait
         """
     )
 
@@ -28,11 +31,19 @@ struct Generate: AsyncParsableCommand {
     @Argument(help: "Text prompt describing the video to generate")
     var prompt: String
 
-    @Option(name: .long, help: "Provider ID (replicate, fal, runway, luma, kling, minimax)")
-    var provider: String
+    @Option(name: .long, help: "Provider ID (replicate, fal, runway, luma, kling, minimax). Optional with --route smart")
+    var provider: String?
 
-    @Option(name: .long, help: "Model ID (use 'openflix models --provider <id>' to list)")
-    var model: String
+    @Option(name: .long, help: "Model ID (use 'openflix models --provider <id>' to list). Optional with --route smart")
+    var model: String?
+
+    // MARK: - Routing
+
+    @Option(name: .long, help: "Routing mode: 'smart' auto-selects provider/model by community preference win rate (registry data, cached 24h)")
+    var route: String?
+
+    @Option(name: .long, help: "Category hint for smart routing (e.g. cinematic, anime, product)")
+    var category: String?
 
     // MARK: - Generation params
 
@@ -100,6 +111,34 @@ struct Generate: AsyncParsableCommand {
     mutating func run() async throws {
         Output.pretty = pretty
 
+        // Smart routing: resolve provider/model from preference data
+        var routingInfo: [String: Any]?
+        if let route {
+            guard route == "smart" else {
+                Output.failMessage("Unknown routing mode '\(route)'. Supported: smart", code: "invalid_input")
+            }
+            if provider == nil || model == nil {
+                do {
+                    let decision = try await PreferenceRouter.decide(
+                        category: category,
+                        needsImageToVideo: image != nil,
+                        duration: duration
+                    )
+                    provider = decision.provider
+                    model = decision.model
+                    routingInfo = decision.json
+                } catch let e as OpenFlixError {
+                    Output.fail(e)
+                }
+            } else {
+                routingInfo = ["mode": "smart", "chosen": "\(provider!)/\(model!)", "fallback": true, "fallback_reason": "provider and model given explicitly"]
+            }
+        }
+
+        guard let provider, let model else {
+            Output.failMessage("--provider and --model are required (or use --route smart to auto-select).", code: "invalid_input")
+        }
+
         // Validate provider/model
         let registry = ProviderRegistry.shared
         guard let prov = try? registry.provider(for: provider) else {
@@ -165,7 +204,7 @@ struct Generate: AsyncParsableCommand {
             catch let e as OpenFlixError { Output.fail(e) }
             catch { Output.failMessage(error.localizedDescription) }
             let est = prov.estimateCost(durationSeconds: duration ?? 4, modelId: model)
-            Output.emitDict([
+            var dict: [String: Any] = [
                 "dry_run": true,
                 "provider": provider,
                 "model": model,
@@ -174,7 +213,9 @@ struct Generate: AsyncParsableCommand {
                 "aspect_ratio": aspectRatio as Any,
                 "estimated_cost_usd": est as Any,
                 "api_key_resolved": true,
-            ])
+            ]
+            if let routingInfo { dict["routing"] = routingInfo }
+            Output.emitDict(dict)
             return
         }
 
@@ -203,7 +244,9 @@ struct Generate: AsyncParsableCommand {
                     apiKey: apiKey,
                     options: opts
                 )
-                Output.emitDict(gen.jsonRepresentation)
+                var out = gen.jsonRepresentation
+                if let routingInfo { out["routing"] = routingInfo }
+                Output.emitDict(out)
             } else {
                 let gen = try await GenerationEngine.submit(
                     prompt: prompt,
@@ -218,7 +261,9 @@ struct Generate: AsyncParsableCommand {
                     extraParams: extras,
                     apiKey: apiKey
                 )
-                Output.emitDict(gen.jsonRepresentation)
+                var out = gen.jsonRepresentation
+                if let routingInfo { out["routing"] = routingInfo }
+                Output.emitDict(out)
             }
         } catch let error as OpenFlixError {
             Output.fail(error)

@@ -178,7 +178,7 @@ actor MCPServer {
         case "get_generation":
             return try toolGetGeneration(arguments)
         case "cancel_generation":
-            return try toolCancelGeneration(arguments)
+            return try await toolCancelGeneration(arguments)
         case "retry_generation":
             return try await toolRetryGeneration(arguments)
         case "list_providers":
@@ -295,7 +295,7 @@ actor MCPServer {
         return gen.jsonRepresentation
     }
 
-    private func toolCancelGeneration(_ args: [String: AnyCodableValue]) throws -> [String: Any] {
+    private func toolCancelGeneration(_ args: [String: AnyCodableValue]) async throws -> [String: Any] {
         let genId = try requireString(args, "generation_id")
         guard let gen = GenerationStore.shared.get(genId) else {
             throw OpenFlixError.generationNotFound(genId)
@@ -303,11 +303,32 @@ actor MCPServer {
         guard !gen.status.isTerminal else {
             throw OpenFlixError.invalidResponse("Generation is already in terminal state: \(gen.status.rawValue)")
         }
+        // Route through the real provider cancel path (same as `openflix cancel`),
+        // preserving the local state flip as fallback when the provider has no
+        // cancel API (cancelNotSupported) or the call fails.
+        var remoteCancelled = false
+        var note: String?
+        switch await CancelService.attemptRemoteCancel(gen: gen, apiKey: nil) {
+        case .cancelled:
+            remoteCancelled = true
+        case .notSupported(let error):
+            note = "\(error.errorDescription ?? "cancel not supported") — cancelled locally only"
+        case .bestEffortFailed:
+            note = "provider cancel failed — cancelled locally only"
+        case .noRemoteTask:
+            note = "no remote task — cancelled locally only"
+        }
         GenerationStore.shared.update(id: genId) {
             $0.status = .cancelled
             $0.completedAt = Date()
         }
-        return ["status": "cancelled", "generation_id": genId]
+        var result: [String: Any] = [
+            "status": "cancelled",
+            "generation_id": genId,
+            "remote_cancelled": remoteCancelled,
+        ]
+        if let note { result["note"] = note }
+        return result
     }
 
     private func toolRetryGeneration(_ args: [String: AnyCodableValue]) async throws -> [String: Any] {

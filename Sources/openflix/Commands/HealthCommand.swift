@@ -27,13 +27,13 @@ struct Health: AsyncParsableCommand {
         let fm = FileManager.default
         let home = fm.homeDirectoryForCurrentUser
         let storeDir = home.appendingPathComponent(".openflix", isDirectory: true)
-        let storeFile = storeDir.appendingPathComponent("store.json")
+        let generationsDir = storeDir.appendingPathComponent("generations", isDirectory: true)
         let downloadsDir = home.appendingPathComponent(".openflix/downloads", isDirectory: true)
 
-        // Check store writable
+        // Check store writable (per-record layout: ~/.openflix/generations/)
         let storeWritable: Bool
-        if fm.fileExists(atPath: storeFile.path) {
-            storeWritable = fm.isWritableFile(atPath: storeFile.path)
+        if fm.fileExists(atPath: generationsDir.path) {
+            storeWritable = fm.isWritableFile(atPath: generationsDir.path)
         } else {
             storeWritable = fm.isWritableFile(atPath: storeDir.path)
         }

@@ -5,30 +5,30 @@ final class FalClient: VideoProvider {
     let displayName = "fal.ai"
 
     let models: [CLIProviderModel] = [
-        CLIProviderModel(providerId: "fal", providerName: "fal.ai",
+        .priced(providerId: "fal", providerName: "fal.ai",
             modelId: "fal-ai/bytedance/seedance/v2/text-to-video", displayName: "Seedance 2.0",
-            defaultWidth: 1920, defaultHeight: 1080, maxDurationSeconds: 15, costPerSecondUSD: 0.05, supportsImageToVideo: false),
-        CLIProviderModel(providerId: "fal", providerName: "fal.ai",
+            defaultWidth: 1920, defaultHeight: 1080, maxDurationSeconds: 15, supportsImageToVideo: false),
+        .priced(providerId: "fal", providerName: "fal.ai",
             modelId: "fal-ai/bytedance/seedance/v2/image-to-video", displayName: "Seedance 2.0 I2V",
-            defaultWidth: 1920, defaultHeight: 1080, maxDurationSeconds: 15, costPerSecondUSD: 0.06, supportsImageToVideo: true),
-        CLIProviderModel(providerId: "fal", providerName: "fal.ai",
+            defaultWidth: 1920, defaultHeight: 1080, maxDurationSeconds: 15, supportsImageToVideo: true),
+        .priced(providerId: "fal", providerName: "fal.ai",
             modelId: "fal-ai/kling-video/v2/master/text-to-video", displayName: "Kling v2 Master",
-            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 10, costPerSecondUSD: 0.06, supportsImageToVideo: true),
-        CLIProviderModel(providerId: "fal", providerName: "fal.ai",
+            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 10, supportsImageToVideo: true),
+        .priced(providerId: "fal", providerName: "fal.ai",
             modelId: "fal-ai/minimax/hailuo-02", displayName: "Hailuo 02",
-            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 6, costPerSecondUSD: 0.05, supportsImageToVideo: false),
-        CLIProviderModel(providerId: "fal", providerName: "fal.ai",
+            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 6, supportsImageToVideo: false),
+        .priced(providerId: "fal", providerName: "fal.ai",
             modelId: "fal-ai/luma-dream-machine", displayName: "Luma Dream Machine",
-            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 5, costPerSecondUSD: 0.08, supportsImageToVideo: false),
-        CLIProviderModel(providerId: "fal", providerName: "fal.ai",
+            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 5, supportsImageToVideo: false),
+        .priced(providerId: "fal", providerName: "fal.ai",
             modelId: "fal-ai/hunyuan-video", displayName: "Hunyuan Video",
-            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 5, costPerSecondUSD: 0.04, supportsImageToVideo: false),
-        CLIProviderModel(providerId: "fal", providerName: "fal.ai",
+            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 5, supportsImageToVideo: false),
+        .priced(providerId: "fal", providerName: "fal.ai",
             modelId: "fal-ai/wan/v2.1/1080p", displayName: "Wan 2.1 1080p",
-            defaultWidth: 1920, defaultHeight: 1080, maxDurationSeconds: 5, costPerSecondUSD: 0.03, supportsImageToVideo: false),
-        CLIProviderModel(providerId: "fal", providerName: "fal.ai",
+            defaultWidth: 1920, defaultHeight: 1080, maxDurationSeconds: 5, supportsImageToVideo: false),
+        .priced(providerId: "fal", providerName: "fal.ai",
             modelId: "fal-ai/veo3", displayName: "Veo 3",
-            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 8, costPerSecondUSD: 0.15, supportsImageToVideo: false),
+            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 8, supportsImageToVideo: false),
     ]
 
     private let session = makeSession()
@@ -102,10 +102,6 @@ final class FalClient: VideoProvider {
         }
     }
 
-    func estimateCost(durationSeconds: Double, modelId: String) -> Double? {
-        let cps = models.first { $0.modelId == modelId }?.costPerSecondUSD ?? 0.05
-        return cps * durationSeconds
-    }
 
     func cancel(taskId: String, statusURL: URL?, apiKey: String) async throws {
         // Status URL is https://queue.fal.run/{model_id}/requests/{request_id}/status;
