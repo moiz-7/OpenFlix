@@ -5,18 +5,18 @@ final class ReplicateClient: VideoProvider {
     let displayName = "Replicate"
 
     let models: [CLIProviderModel] = [
-        CLIProviderModel(providerId: "replicate", providerName: "Replicate",
+        .priced(providerId: "replicate", providerName: "Replicate",
             modelId: "minimax/video-01-live", displayName: "MiniMax Video-01 Live",
-            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 6, costPerSecondUSD: 0.05, supportsImageToVideo: false),
-        CLIProviderModel(providerId: "replicate", providerName: "Replicate",
+            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 6, supportsImageToVideo: false),
+        .priced(providerId: "replicate", providerName: "Replicate",
             modelId: "tencent/hunyuan-video", displayName: "Hunyuan Video",
-            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 5, costPerSecondUSD: 0.04, supportsImageToVideo: false),
-        CLIProviderModel(providerId: "replicate", providerName: "Replicate",
+            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 5, supportsImageToVideo: false),
+        .priced(providerId: "replicate", providerName: "Replicate",
             modelId: "wavespeed-ai/wan-2.1", displayName: "Wan 2.1",
-            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 5, costPerSecondUSD: 0.03, supportsImageToVideo: false),
-        CLIProviderModel(providerId: "replicate", providerName: "Replicate",
+            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 5, supportsImageToVideo: false),
+        .priced(providerId: "replicate", providerName: "Replicate",
             modelId: "kwaai/kling-v1.6-pro", displayName: "Kling v1.6 Pro",
-            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 10, costPerSecondUSD: 0.10, supportsImageToVideo: true),
+            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 10, supportsImageToVideo: true),
     ]
 
     private let session = makeSession()
@@ -97,10 +97,6 @@ final class ReplicateClient: VideoProvider {
         }
     }
 
-    func estimateCost(durationSeconds: Double, modelId: String) -> Double? {
-        let cps = models.first { $0.modelId == modelId }?.costPerSecondUSD ?? 0.05
-        return cps * durationSeconds
-    }
 
     func cancel(taskId: String, statusURL: URL?, apiKey: String) async throws {
         guard let encoded = taskId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),

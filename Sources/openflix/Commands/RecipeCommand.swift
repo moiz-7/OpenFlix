@@ -254,6 +254,7 @@ struct RecipeExport: AsyncParsableCommand {
 
         let exported = recipe.toExported(bestGen: bestGen)
         let bundle = RecipeBundle(
+            formatVersion: RecipeBundle.formatVersion(for: [exported]),
             exportedAt: Date(),
             author: nil,
             recipes: [exported]
@@ -445,6 +446,9 @@ struct RecipeRun: AsyncParsableCommand {
     @Option(name: .long, help: "API key (overrides env var and keychain)")
     var apiKey: String?
 
+    @Option(name: .long, help: "Recipe argument as name=value (repeatable; falls back to declared defaults)")
+    var arg: [String] = []
+
     @Flag(name: .long, help: "Skip downloading the video after generation completes")
     var skipDownload: Bool = false
 
@@ -482,6 +486,16 @@ struct RecipeRun: AsyncParsableCommand {
                 Output.failMessage("Recipe '\(identifier)' not found.", code: "not_found")
             }
             recipe = found
+        }
+
+        // Resolve declared args (v3) and substitute {{name}} placeholders.
+        // v2 recipes (no args) with no --arg flags pass through unchanged.
+        do {
+            let provided = try RecipeArgResolver.parseArgFlags(arg)
+            let values = try RecipeArgResolver.resolve(args: recipe.args ?? [], provided: provided)
+            recipe = recipe.substituting(values)
+        } catch let e as RecipeArgError {
+            Output.failMessage(e.errorDescription ?? "Invalid recipe arg", code: e.code)
         }
 
         // Validate provider/model
@@ -633,7 +647,10 @@ struct RecipePublish: AsyncParsableCommand {
             .max(by: { ($0.completedAt ?? .distantPast) < ($1.completedAt ?? .distantPast) })
 
         let exported = recipe.toExported(bestGen: bestGen)
-        let bundle = RecipeBundle(exportedAt: Date(), author: author, recipes: [exported])
+        let bundle = RecipeBundle(
+            formatVersion: RecipeBundle.formatVersion(for: [exported]),
+            exportedAt: Date(), author: author, recipes: [exported]
+        )
 
         do {
             let (id, url) = try await RegistryClient.publish(

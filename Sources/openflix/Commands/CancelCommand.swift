@@ -1,6 +1,36 @@
 import ArgumentParser
 import Foundation
 
+// MARK: - Shared provider-cancel path (used by CLI cancel and MCP cancel_generation)
+
+enum CancelService {
+
+    enum RemoteOutcome {
+        case cancelled                       // provider accepted the cancel
+        case notSupported(OpenFlixError)     // provider has no cancel API
+        case bestEffortFailed                // network/other error — cancel locally anyway
+        case noRemoteTask                    // nothing to cancel remotely
+    }
+
+    /// Attempt the real provider cancel for a generation.
+    static func attemptRemoteCancel(gen: CLIGeneration, apiKey: String?) async -> RemoteOutcome {
+        guard let taskId = gen.remoteTaskId,
+              let key = try? CLIKeychain.resolveKey(provider: gen.provider, flagValue: apiKey),
+              let provider = try? ProviderRegistry.shared.provider(for: gen.provider) else {
+            return .noRemoteTask
+        }
+        do {
+            try await provider.cancel(taskId: taskId, statusURL: gen.statusURL.flatMap { URL(string: $0) }, apiKey: key)
+            return .cancelled
+        } catch let error as OpenFlixError {
+            if case .cancelNotSupported = error { return .notSupported(error) }
+            return .bestEffortFailed
+        } catch {
+            return .bestEffortFailed
+        }
+    }
+}
+
 struct Cancel: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         abstract: "Cancel a running generation",
@@ -46,19 +76,9 @@ struct Cancel: AsyncParsableCommand {
         }
 
         // Remote cancel — providers without cancel support surface a real error.
-        if let taskId = gen.remoteTaskId,
-           let key = try? CLIKeychain.resolveKey(provider: gen.provider, flagValue: apiKey),
-           let provider = try? ProviderRegistry.shared.provider(for: gen.provider) {
-            do {
-                try await provider.cancel(taskId: taskId, statusURL: gen.statusURL.flatMap { URL(string: $0) }, apiKey: key)
-            } catch let error as OpenFlixError {
-                if case .cancelNotSupported = error {
-                    Output.fail(error)
-                }
-                // Other provider errors are best-effort — still cancel locally.
-            } catch {
-                // Best-effort: network failures don't block local cancellation.
-            }
+        // (Other provider errors are best-effort — still cancel locally.)
+        if case .notSupported(let error) = await CancelService.attemptRemoteCancel(gen: gen, apiKey: apiKey) {
+            Output.fail(error)
         }
 
         GenerationStore.shared.update(id: gen.id) { g in

@@ -18,6 +18,13 @@ extension VideoProvider {
     func cancel(taskId: String, statusURL: URL?, apiKey: String) async throws {
         throw OpenFlixError.cancelNotSupported(displayName)
     }
+
+    /// Cost estimates resolve through the single pricing table
+    /// (Core/ModelPricing.swift) — providers do not carry their own copies.
+    func estimateCost(durationSeconds: Double, modelId: String) -> Double? {
+        ModelPricing.estimate(durationSeconds: durationSeconds,
+                              modelId: modelId, providerId: providerId)
+    }
 }
 
 // MARK: - Registry

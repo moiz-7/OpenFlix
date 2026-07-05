@@ -26,6 +26,8 @@ struct CLIRecipe: Codable {
     var totalCostUSD: Double
     var createdAt: Date
     var updatedAt: Date
+    var args: [RecipeArg]?    // formatVersion 3: declared arguments (optional — v2 recipes decode as nil)
+    var uses: [RecipeUse]?    // formatVersion 3: composition references
 
     init(name: String, promptText: String, negativePromptText: String = "",
          provider: String? = nil, model: String? = nil, aspectRatio: String? = nil,
@@ -54,6 +56,8 @@ struct CLIRecipe: Codable {
         self.totalCostUSD = 0
         self.createdAt = Date()
         self.updatedAt = Date()
+        self.args = nil
+        self.uses = nil
     }
 
     // Convert to RecipeBundle.ExportedRecipe for export
@@ -71,10 +75,10 @@ struct CLIRecipe: Codable {
             winCount: winCount, totalCostUSD: totalCostUSD
         )
         // Parse parametersJSON to [String: String] if present
-        if let json = parametersJSON, let data = json.data(using: .utf8),
-           let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            exported.parameters = dict.mapValues { "\($0)" }
-        }
+        let params = parameterStrings()
+        if !params.isEmpty { exported.parameters = params }
+        exported.args = args
+        exported.uses = uses
         if let gen = bestGen {
             exported.bestExecution = RecipeBundle.ExecutionSnapshot(
                 provider: gen.provider, model: gen.model,
@@ -110,6 +114,8 @@ struct CLIRecipe: Codable {
         self.totalCostUSD = 0
         self.createdAt = Date()
         self.updatedAt = Date()
+        self.args = exported.args
+        self.uses = exported.uses
         // Convert parameters dict to JSON string
         if let params = exported.parameters, !params.isEmpty,
            let data = try? JSONSerialization.data(withJSONObject: params) {
@@ -146,7 +152,14 @@ struct CLIRecipe: Codable {
         if let v = forkType        { d["fork_type"] = v }
         if let v = category        { d["category"] = v }
         if let v = avgQualityScore { d["avg_quality_score"] = (v * 10).rounded() / 10 }
+        if let v = args, !v.isEmpty, let json = Self.encodeAsJSONObject(v) { d["args"] = json }
+        if let v = uses, !v.isEmpty, let json = Self.encodeAsJSONObject(v) { d["uses"] = json }
         return d
+    }
+
+    private static func encodeAsJSONObject<T: Encodable>(_ value: T) -> Any? {
+        guard let data = try? JSONEncoder().encode(value) else { return nil }
+        return try? JSONSerialization.jsonObject(with: data)
     }
 }
 

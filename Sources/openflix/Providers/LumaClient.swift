@@ -5,15 +5,15 @@ final class LumaClient: VideoProvider {
     let displayName = "Luma"
 
     let models: [CLIProviderModel] = [
-        CLIProviderModel(providerId: "luma", providerName: "Luma",
+        .priced(providerId: "luma", providerName: "Luma",
             modelId: "ray-2", displayName: "Ray 2",
-            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 5, costPerSecondUSD: 0.10, supportsImageToVideo: true),
-        CLIProviderModel(providerId: "luma", providerName: "Luma",
+            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 5, supportsImageToVideo: true),
+        .priced(providerId: "luma", providerName: "Luma",
             modelId: "ray-flash-2", displayName: "Ray Flash 2",
-            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 5, costPerSecondUSD: 0.05, supportsImageToVideo: true),
-        CLIProviderModel(providerId: "luma", providerName: "Luma",
+            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 5, supportsImageToVideo: true),
+        .priced(providerId: "luma", providerName: "Luma",
             modelId: "ray-3", displayName: "Ray 3",
-            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 10, costPerSecondUSD: 0.20, supportsImageToVideo: true),
+            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 10, supportsImageToVideo: true),
     ]
 
     private let session = makeSession()
@@ -82,8 +82,4 @@ final class LumaClient: VideoProvider {
         }
     }
 
-    func estimateCost(durationSeconds: Double, modelId: String) -> Double? {
-        let cps = models.first { $0.modelId == modelId }?.costPerSecondUSD ?? 0.10
-        return cps * durationSeconds
-    }
 }

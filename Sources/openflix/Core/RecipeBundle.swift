@@ -8,6 +8,15 @@ struct RecipeBundle: Codable {
     var author: String?
     var recipes: [ExportedRecipe]
 
+    /// v3 is only written when a recipe actually uses v3 features (args/uses);
+    /// otherwise stay at 2 so existing exported files don't churn.
+    static func formatVersion(for recipes: [ExportedRecipe]) -> Int {
+        let usesV3 = recipes.contains {
+            !($0.args ?? []).isEmpty || !($0.uses ?? []).isEmpty
+        }
+        return usesV3 ? 3 : 2
+    }
+
     struct ExportedRecipe: Codable {
         var id: String                    // UUID, stable across exports
         var name: String
@@ -31,6 +40,8 @@ struct RecipeBundle: Codable {
         var winCount: Int?
         var totalCostUSD: Double?
         var bestExecution: ExecutionSnapshot?
+        var args: [RecipeArg]?        // formatVersion 3: declared arguments
+        var uses: [RecipeUse]?        // formatVersion 3: composition references
     }
 
     struct ExecutionSnapshot: Codable {

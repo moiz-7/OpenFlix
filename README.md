@@ -193,7 +193,7 @@ See [benchmarks/](benchmarks/) for published benchmark results.
 ## Data Storage
 
 - Recipes: `~/.openflix/recipes.json`
-- Generations: `~/.openflix/store.json`
+- Generations: `~/.openflix/generations/` (one JSON file per record; legacy `store.json` migrates automatically)
 - API keys: macOS Keychain (`com.openflix.cli.*`)
 - Projects: `~/.openflix/projects/`
 - Metrics: `~/.openflix/metrics.json`
