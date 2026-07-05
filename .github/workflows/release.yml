@@ -1,0 +1,46 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-14
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build release binary
+        run: swift build -c release
+
+      - name: Package
+        run: |
+          ARCHIVE="openflix-${GITHUB_REF_NAME}-macos.tar.gz"
+          mkdir -p dist
+          tar -czf "dist/${ARCHIVE}" -C .build/release openflix
+          echo "ARCHIVE=${ARCHIVE}" >> "$GITHUB_ENV"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" "dist/${ARCHIVE}" \
+            --title "OpenFlix CLI ${GITHUB_REF_NAME}" \
+            --generate-notes
+
+      - name: Print sha256 for the Homebrew formula
+        run: |
+          SHA=$(shasum -a 256 "dist/${ARCHIVE}" | awk '{print $1}')
+          echo "sha256: ${SHA}"
+          echo "Update homebrew-tap/Formula/openflix.rb: point url at the ${GITHUB_REF_NAME} release asset and set sha256 to the value above."
+          {
+            echo "## Release asset checksum"
+            echo '```'
+            echo "${ARCHIVE}  sha256=${SHA}"
+            echo '```'
+            echo "Update \`homebrew-tap/Formula/openflix.rb\` with this sha256 and the new version url."
+          } >> "$GITHUB_STEP_SUMMARY"
