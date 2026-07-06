@@ -3,6 +3,23 @@ import CryptoKit
 
 // MARK: - Run journal records
 
+/// Reference intent for a node: which upstream stage feeds its output forward
+/// as the I2V reference, and what it resolved to at execution time (null until
+/// the upstream node has produced an output — e.g. in freshly created runs).
+struct NodeReferenceRecord: Codable {
+    var from: String              // upstream stage id (reference_from)
+    var resolvedPath: String?     // upstream output URL/path, once known
+
+    enum CodingKeys: String, CodingKey {
+        case from
+        case resolvedPath = "resolved_path"
+    }
+
+    var jsonRepresentation: [String: Any] {
+        ["from": from, "resolved_path": resolvedPath ?? NSNull()]
+    }
+}
+
 /// One record per executed node (shot/stage) in a DAG run.
 struct NodeRecord: Codable {
     var nodeId: String            // stable node key (shot/stage name)
@@ -13,6 +30,7 @@ struct NodeRecord: Codable {
     var costUSD: Double?
     var startedAt: Date?
     var completedAt: Date?
+    var reference: NodeReferenceRecord? = nil   // reference_from intent + resolution
 
     var jsonRepresentation: [String: Any] {
         var d: [String: Any] = [
@@ -25,6 +43,7 @@ struct NodeRecord: Codable {
         if let v = costUSD      { d["cost_usd"] = (v * 10000).rounded() / 10000 }
         if let v = startedAt    { d["started_at"] = ISO8601DateFormatter().string(from: v) }
         if let v = completedAt  { d["completed_at"] = ISO8601DateFormatter().string(from: v) }
+        if let v = reference    { d["reference"] = v.jsonRepresentation }
         return d
     }
 }

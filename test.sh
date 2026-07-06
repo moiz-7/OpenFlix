@@ -2084,6 +2084,48 @@ else
     fail "import reference validation (got: $ref_out)"
 fi
 
+# ── 205. Wave 4: reference_from + style_lock in dry-run plan (offline) ────
+echo "205. Workflow: reference_from + style_lock render intent in --dry-run"
+WF_REF=$(mktemp /tmp/openflix_wfref_XXXXXX.json)
+cat > "$WF_REF" <<'EOF'
+{
+  "name": "two-shot-consistency",
+  "stages": [
+    {"id": "shot1", "prompt": "hero shot: ceramic robot barista pours latte art",
+     "provider": "fal", "model": "fal-ai/veo3", "duration": 5,
+     "style_lock": {"seedPolicy": "fixed", "notes": "keep the glaze identical"},
+     "fanout": 2, "judge": {"keep": 1}},
+    {"id": "shot2", "reference_from": "shot1",
+     "prompt": "close-up: the same ceramic robot barista smiles",
+     "provider": "kling", "model": "kling-v2.6-pro", "duration": 5}
+  ]
+}
+EOF
+ref_dry=$($BINARY workflow run "$WF_REF" --dry-run 2>&1 || true)
+if echo "$ref_dry" | grep -q '"reference":{"from":"shot1","resolved_path":null}' && \
+   echo "$ref_dry" | grep -q '"seed_policy":"fixed"' && \
+   echo "$ref_dry" | grep -q '"seed":"' && \
+   echo "$ref_dry" | grep -q '"needs":\["shot1"\]'; then
+    pass "dry-run shows reference intent, fixed seed, and implied DAG edge"
+else
+    fail "reference intent in dry-run (got: $ref_dry)"
+fi
+
+echo "206. Workflow: unknown reference_from rejected with unknown_reference"
+WF_REFBAD=$(mktemp /tmp/openflix_wfrefbad_XXXXXX.json)
+cat > "$WF_REFBAD" <<'EOF'
+{"name": "bad-ref", "stages": [
+  {"id": "a", "reference_from": "ghost", "prompt": "x",
+   "provider": "fal", "model": "fal-ai/veo3"}]}
+EOF
+refbad_out=$($BINARY workflow run "$WF_REFBAD" --dry-run 2>&1 || true)
+if echo "$refbad_out" | grep -q '"code":"unknown_reference"'; then
+    pass "unknown reference_from emits structured unknown_reference"
+else
+    fail "unknown_reference validation (got: $refbad_out)"
+fi
+rm -f "$WF_REF" "$WF_REFBAD"
+
 # ── Summary ─────────────────────────────────────────────
 echo ""
 echo "=== Results: $PASS passed, $FAIL failed ==="

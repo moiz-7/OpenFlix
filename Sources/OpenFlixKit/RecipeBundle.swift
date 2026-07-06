@@ -16,11 +16,14 @@ public struct RecipeBundle: Codable {
         self.recipes = recipes
     }
 
-    /// v3 is only written when a recipe actually uses v3 features (args/uses);
-    /// otherwise stay at 2 so existing exported files don't churn.
+    /// v3 is only written when a recipe actually uses v3 features
+    /// (args/uses/referenceImages/styleLock); otherwise stay at 2 so existing
+    /// exported files don't churn. Note: 3 means "has optional extensions" —
+    /// referenceImages/styleLock are valid in any v3 bundle (there is no 3.1).
     public static func formatVersion(for recipes: [ExportedRecipe]) -> Int {
         let usesV3 = recipes.contains {
             !($0.args ?? []).isEmpty || !($0.uses ?? []).isEmpty
+                || !($0.referenceImages ?? []).isEmpty || $0.styleLock != nil
         }
         return usesV3 ? 3 : 2
     }
@@ -50,6 +53,8 @@ public struct RecipeBundle: Codable {
         public var bestExecution: ExecutionSnapshot?
         public var args: [RecipeArg]?        // formatVersion 3: declared arguments
         public var uses: [RecipeUse]?        // formatVersion 3: composition references
+        public var referenceImages: [String]?  // formatVersion 3: consistency intent — reference image paths or URLs
+        public var styleLock: StyleLock?       // formatVersion 3: consistency intent — seed policy + notes
 
         public init(id: String, name: String, promptText: String,
                     negativePromptText: String,
@@ -64,7 +69,8 @@ public struct RecipeBundle: Codable {
                     generationCount: Int? = nil, avgQualityScore: Double? = nil,
                     winCount: Int? = nil, totalCostUSD: Double? = nil,
                     bestExecution: ExecutionSnapshot? = nil,
-                    args: [RecipeArg]? = nil, uses: [RecipeUse]? = nil) {
+                    args: [RecipeArg]? = nil, uses: [RecipeUse]? = nil,
+                    referenceImages: [String]? = nil, styleLock: StyleLock? = nil) {
             self.id = id
             self.name = name
             self.promptText = promptText
@@ -89,6 +95,8 @@ public struct RecipeBundle: Codable {
             self.bestExecution = bestExecution
             self.args = args
             self.uses = uses
+            self.referenceImages = referenceImages
+            self.styleLock = styleLock
         }
     }
 
