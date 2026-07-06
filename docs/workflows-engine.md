@@ -40,12 +40,15 @@ Each stage:
 | `params`          | {string:string} | no       | Provider extra params (e.g. `{"seed": "42"}`)                  |
 | `fanout`          | int >= 1        | no       | Generate N candidates in parallel (scatter-gather)             |
 | `judge`           | object          | no       | `{"keep": K, "min_score": X}` — score candidates with the quality evaluators, keep top K, fail the stage if nothing reaches `min_score`. In `--dry-run` judging is skipped with a note. |
+| `reference_from`  | string          | no       | Upstream stage id whose output feeds forward as this stage's I2V reference (see Consistency below) |
+| `reference_images`| [string]        | no       | Reference image paths/URLs (consistency intent; first entry passed to I2V-capable providers) |
+| `style_lock`      | object          | no       | `{"seedPolicy": "fixed"\|"per_shot", "notes"?}` — seed policy across fanout candidates |
 
 Validation errors are structured: `duplicate_stage_id`, `unknown_dependency`,
 `cyclic_dependency`, `missing_prompt`, `missing_provider`, `invalid_fanout`,
-`invalid_judge`, `unknown_prompt_from`, `yaml_not_supported`, `recipe_conflict`,
-`args_without_recipe`, `unknown_recipe`, plus recipe-arg errors (`missing_arg`,
-`unknown_arg`, `invalid_number`, `invalid_choice`, `invalid_arg_spec`).
+`invalid_judge`, `unknown_prompt_from`, `unknown_reference`, `yaml_not_supported`,
+`recipe_conflict`, `args_without_recipe`, `unknown_recipe`, plus recipe-arg errors
+(`missing_arg`, `unknown_arg`, `invalid_number`, `invalid_choice`, `invalid_arg_spec`).
 
 ## Recipe-backed stages (composition v1)
 
@@ -84,6 +87,70 @@ Rules:
 - Recipes may also *declare* composition intent with a `uses` array
   (`[{"recipeId": "...", "args": {...}}]`). In v1 this is carried metadata
   (exported, imported, shown) — execution always flows through workflow stages.
+
+## Consistency: `reference_from` + `style_lock` (Wave 4)
+
+Two shots of "the same" character usually aren't. Wave 4 makes consistency intent
+**recorded and reproducible** instead of a vibe:
+
+### `reference_from: <stage-id>`
+
+A stage may name an upstream stage whose output should be fed forward as the
+reference image/video for image-to-video providers:
+
+```json
+{
+  "name": "two-shot-consistency",
+  "stages": [
+    {"id": "shot1", "prompt": "hero shot: ceramic robot barista pours latte art",
+     "provider": "fal", "model": "fal-ai/veo3", "duration": 5,
+     "style_lock": {"seedPolicy": "fixed", "notes": "keep the glaze identical"},
+     "fanout": 2, "judge": {"keep": 1}},
+    {"id": "shot2", "reference_from": "shot1",
+     "prompt": "close-up: the same ceramic robot barista smiles",
+     "provider": "kling", "model": "kling-v2.6-pro", "duration": 5}
+  ]
+}
+```
+
+Semantics (v1 — honest and minimal):
+
+- `reference_from` **implies a DAG edge**: if the referenced stage is not already in
+  `needs`, it is added (you cannot consume an output that isn't guaranteed to exist).
+  Unknown or self references fail with `unknown_reference`; a reference that closes a
+  loop fails with `cyclic_dependency`.
+- The **dry-run plan** and the **run journal** record the intent:
+  `"reference": {"from": "shot1", "resolved_path": null}` — `resolved_path` fills in at
+  execution time with the upstream node's selected output (remote video URL, or local
+  path as fallback).
+- At execution time the resolved output is passed through to the provider request's
+  existing reference field (fal `image_url`, Kling `image` — which also flips its
+  endpoint to `image_to_video` — MiniMax `first_frame_image`, Luma, Runway). Providers
+  whose models cannot consume a reference get an honest dry-run note:
+  `"provider does not support reference input"` — the intent is still recorded.
+- No provider API params are invented; only fields that already exist in each client's
+  submit body are used.
+
+### `style_lock` (seed policy)
+
+`{"seedPolicy": "fixed" | "per_shot", "notes": "..."}` — inner keys are camelCase
+because the object is carried verbatim from the recipe format (`StyleLock` in the kit).
+
+- **`fixed`** — one seed shared by every fanout candidate of the stage. An explicit
+  `params.seed` (stage or recipe) wins; otherwise the seed is derived
+  **deterministically** from workflow name + stage id, so the same file produces the
+  same seed on every run, resume, and machine. The pinned seed appears in the dry-run
+  plan (`style_lock.seed`).
+- **`per_shot`** (or no `style_lock`) — current behavior: params untouched, providers
+  randomize per candidate.
+
+### Recipe-carried consistency
+
+Recipes (format v3) may declare `referenceImages` and `styleLock`. A recipe-backed
+stage inherits both (stage-level fields override, like everything else), and
+`seedPolicy: fixed` pins the recipe's `seed` into the stage params. A stage's (or
+recipe's) first `reference_images` entry is passed through as the shot's reference
+input; `reference_from` output overrides it at dispatch time.
 
 ## Example 1 — multi-shot film
 
@@ -138,16 +205,20 @@ openflix workflow run film.json --resume <run-id>  # pick up where it stopped
      "prompt": "smartwatch rotating on marble pedestal, studio light, draft quality",
      "route": "smart", "category": "product", "duration": 4},
 
-    {"id": "hero", "needs": ["draft"],
+    {"id": "hero", "reference_from": "draft",
      "prompt": "hero shot: smartwatch rotating on black marble, dramatic rim light, 4k",
-     "provider": "fal", "model": "fal-ai/veo3", "duration": 6,
+     "provider": "kling", "model": "kling-v2.6-pro", "duration": 6,
+     "style_lock": {"seedPolicy": "fixed"},
      "fanout": 3, "judge": {"keep": 2, "min_score": 70}}
   ]
 }
 ```
 
 `judge.keep: 2` keeps the two best candidates (`kept_generation_ids`, best first;
-`selected_generation_id` is the winner).
+`selected_generation_id` is the winner). `reference_from: "draft"` feeds the approved
+draft forward as the hero stage's I2V reference (and implies the DAG edge — no
+explicit `needs` required), while the fixed seed policy makes all three hero
+candidates share one deterministic seed.
 
 ## Dry run
 
@@ -159,8 +230,10 @@ Judge blocks carry `"note": "judging skipped in dry-run"`.
 
 Every DAG execution (workflow **and** `project run`) writes a journal to
 `~/.openflix/runs/<run-id>.json` — one record per node: inputs hash, status, generation
-id, output path, cost, timestamps. Writes are incremental (after each node) and atomic
-(write-temp-rename). The `run_id` is included in the output JSON.
+id, output path, cost, timestamps, and (for `reference_from` stages) the reference
+record `{"from": <stage-id>, "resolved_path": <upstream-output-or-null>}`. Writes are
+incremental (after each node) and atomic (write-temp-rename). The `run_id` is included
+in the output JSON.
 
 `openflix workflow run <file> --resume <run-id>`:
 
@@ -171,7 +244,8 @@ id, output path, cost, timestamps. Writes are incremental (after each node) and 
 - output includes `"resumed": {"skipped": n, "executed": n}`.
 
 The inputs hash covers the raw stage spec (resolved prompt, provider/model or the literal
-`route`/`category`, duration, aspect ratio, params, fanout, judge, needs) — SHA256 over
+`route`/`category`, duration, aspect ratio, params, fanout, judge, needs, and the Wave-4
+fields `reference_from`/`reference_images`/`style_lock` seed policy) — SHA256 over
 canonical sorted-key JSON. Because the *resolved* prompt is hashed, editing an upstream
 prompt invalidates every `prompt_from` descendant. Smart-routed stages hash the `route`
 field rather than the resolution, so shifting preference data alone does not force
@@ -251,7 +325,7 @@ Structured errors: `file_not_found`, `invalid_workflow_ref`, `fetch_failed`,
 
 - JSON only; YAML rejected with a clear error (no new dependency for syntax sugar).
 - `prompt_from` copies the upstream stage's *prompt text* (chainable); it does not feed
-  the upstream *video* forward. Use `params`/reference images for visual continuity.
+  the upstream *video* forward — that is what `reference_from` is for (see Consistency).
 - Each (non-dry) run materializes a project under `~/.openflix/projects/` and executes on
   the existing DAG executor; `openflix project status <project-id>` works on workflow runs.
 - Fanout candidates all use the stage's resolved provider/model; judge scoring uses the

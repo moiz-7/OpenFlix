@@ -31,6 +31,8 @@ public struct Recipe: Codable {
     public var updatedAt: Date
     public var args: [RecipeArg]?    // formatVersion 3: declared arguments (optional — v2 recipes decode as nil)
     public var uses: [RecipeUse]?    // formatVersion 3: composition references
+    public var referenceImages: [String]?  // formatVersion 3: consistency intent — reference image paths or URLs
+    public var styleLock: StyleLock?       // formatVersion 3: consistency intent — seed policy + notes
 
     public init(name: String, promptText: String, negativePromptText: String = "",
                 provider: String? = nil, model: String? = nil, aspectRatio: String? = nil,
@@ -61,6 +63,8 @@ public struct Recipe: Codable {
         self.updatedAt = Date()
         self.args = nil
         self.uses = nil
+        self.referenceImages = nil
+        self.styleLock = nil
     }
 
     // Convert to RecipeBundle.ExportedRecipe for export. Consumers that track
@@ -84,6 +88,8 @@ public struct Recipe: Codable {
         if !params.isEmpty { exported.parameters = params }
         exported.args = args
         exported.uses = uses
+        exported.referenceImages = referenceImages
+        exported.styleLock = styleLock
         return exported
     }
 
@@ -112,6 +118,8 @@ public struct Recipe: Codable {
         self.updatedAt = Date()
         self.args = exported.args
         self.uses = exported.uses
+        self.referenceImages = exported.referenceImages
+        self.styleLock = exported.styleLock
         // Convert parameters dict to JSON string
         if let params = exported.parameters, !params.isEmpty,
            let data = try? JSONSerialization.data(withJSONObject: params) {
@@ -150,6 +158,12 @@ public struct Recipe: Codable {
         if let v = avgQualityScore { d["avg_quality_score"] = (v * 10).rounded() / 10 }
         if let v = args, !v.isEmpty, let json = Self.encodeAsJSONObject(v) { d["args"] = json }
         if let v = uses, !v.isEmpty, let json = Self.encodeAsJSONObject(v) { d["uses"] = json }
+        if let v = referenceImages, !v.isEmpty { d["reference_images"] = v }
+        if let v = styleLock {
+            var sl: [String: Any] = ["seed_policy": v.seedPolicy.rawValue]
+            if let n = v.notes { sl["notes"] = n }
+            d["style_lock"] = sl
+        }
         return d
     }
 

@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 import OpenFlixKit
 
@@ -57,12 +58,18 @@ struct WorkflowStage: Codable {
     var params: [String: String]?
     var fanout: Int?
     var judge: JudgeSpec?
+    var referenceFrom: String?        // upstream stage whose output feeds forward as the I2V reference
+    var referenceImages: [String]?    // consistency intent: reference image paths or URLs (recipe or stage)
+    var styleLock: StyleLock?         // consistency intent: seed policy across fanout candidates
 
     enum CodingKeys: String, CodingKey {
         case id, needs, prompt, recipe, args, provider, model, route, category, duration, params, fanout, judge
         case promptFrom = "prompt_from"
         case aspectRatio = "aspect_ratio"
         case negativePrompt = "negative_prompt"
+        case referenceFrom = "reference_from"
+        case referenceImages = "reference_images"
+        case styleLock = "style_lock"
     }
 }
 
@@ -94,6 +101,7 @@ enum WorkflowSpecError: Error, LocalizedError {
     case recipeConflict(String)
     case argsWithoutRecipe(String)
     case unknownRecipe(stage: String, recipeId: String)
+    case unknownReference(stage: String, source: String)
 
     var errorDescription: String? {
         switch self {
@@ -127,6 +135,8 @@ enum WorkflowSpecError: Error, LocalizedError {
             return "Stage '\(id)' has 'args' but no 'recipe' to apply them to"
         case .unknownRecipe(let stage, let recipeId):
             return "Stage '\(stage)' references unknown recipe '\(recipeId)' (not in the local recipe store). Import it first: openflix recipe import <file-or-url>"
+        case .unknownReference(let stage, let source):
+            return "Stage '\(stage)' has reference_from unknown stage '\(source)'"
         }
     }
 
@@ -147,6 +157,7 @@ enum WorkflowSpecError: Error, LocalizedError {
         case .recipeConflict:     return "recipe_conflict"
         case .argsWithoutRecipe:  return "args_without_recipe"
         case .unknownRecipe:      return "unknown_recipe"
+        case .unknownReference:   return "unknown_reference"
         }
     }
 }
@@ -161,11 +172,31 @@ enum WorkflowParser {
             throw WorkflowSpecError.yamlNotSupported
         }
         let decoder = JSONDecoder()
-        let spec: WorkflowSpec
+        var spec: WorkflowSpec
         do { spec = try decoder.decode(WorkflowSpec.self, from: data) }
         catch { throw WorkflowSpecError.invalidFile(error.localizedDescription) }
+        spec = normalized(spec)
         try validate(spec)
         return spec
+    }
+
+    /// Normalization: `reference_from` implies a DAG edge — if the referenced
+    /// stage exists but is not in `needs`, add it (a stage cannot consume an
+    /// upstream output that is not guaranteed to run first). Unknown ids are
+    /// left alone so `validate` reports `unknown_reference`.
+    static func normalized(_ spec: WorkflowSpec) -> WorkflowSpec {
+        var out = spec
+        let ids = Set(spec.stages.map { $0.id })
+        for i in out.stages.indices {
+            guard let ref = out.stages[i].referenceFrom,
+                  ids.contains(ref), ref != out.stages[i].id else { continue }
+            var needs = out.stages[i].needs ?? []
+            if !needs.contains(ref) {
+                needs.append(ref)
+                out.stages[i].needs = needs
+            }
+        }
+        return out
     }
 
     static func validate(_ spec: WorkflowSpec) throws {
@@ -194,6 +225,11 @@ enum WorkflowParser {
             if let src = stage.promptFrom {
                 guard ids.contains(src), src != stage.id else {
                     throw WorkflowSpecError.unknownPromptFrom(stage: stage.id, source: src)
+                }
+            }
+            if let src = stage.referenceFrom {
+                guard ids.contains(src), src != stage.id else {
+                    throw WorkflowSpecError.unknownReference(stage: stage.id, source: src)
                 }
             }
             if let f = stage.fanout, f < 1 {
@@ -320,16 +356,63 @@ enum WorkflowRecipeResolver {
         if out.duration == nil    { out.duration = resolved.durationSeconds }
         if out.aspectRatio == nil { out.aspectRatio = resolved.aspectRatio }
 
+        // Consistency intent (recipe v3): carried into the stage plan.
+        // Stage-level fields override recipe fields, like everything else.
+        if out.referenceImages == nil { out.referenceImages = resolved.referenceImages }
+        if out.styleLock == nil       { out.styleLock = resolved.styleLock }
+
         // Params: recipe params first, stage params override.
         var params = resolved.parameterStrings()
         for (k, v) in stage.params ?? [:] { params[k] = v }
         if !params.isEmpty { out.params = params }
+
+        // styleLock.seedPolicy = fixed: pin the recipe's seed into the stage
+        // params so every fanout candidate reuses it (recipe seed is otherwise
+        // not carried into params). Random seed generation for seedless fixed
+        // stages happens later, in StyleLockSeed.apply.
+        if out.styleLock?.seedPolicy == .fixed, out.params?["seed"] == nil, let seed = resolved.seed {
+            var p = out.params ?? [:]
+            p["seed"] = String(seed)
+            out.params = p
+        }
 
         // After inlining, an explicit provider+model (or smart routing) must exist.
         if out.route == nil && (out.provider == nil || out.model == nil) {
             throw WorkflowSpecError.missingProvider(stage.id)
         }
         return out
+    }
+}
+
+// MARK: - Seed policy (pure)
+
+/// styleLock.seedPolicy semantics for a stage's fanout candidates:
+/// - `fixed`: one seed shared by every candidate. An explicit `params["seed"]`
+///   (stage or recipe) wins; otherwise a seed is derived deterministically
+///   from `seedSource` (workflow name + stage id), so the whole fanout, any
+///   `--resume`, and any re-run of the same file reuse the SAME seed —
+///   consistency is reproducible, not a per-process dice roll.
+/// - `per_shot` (or no styleLock): current behavior — params untouched; a
+///   provider without an explicit seed randomizes per candidate.
+enum StyleLockSeed {
+
+    static func apply(params: [String: String]?, styleLock: StyleLock?,
+                      seedSource: String) -> [String: String]? {
+        guard styleLock?.seedPolicy == .fixed else { return params }
+        var out = params ?? [:]
+        if out["seed"] == nil {
+            out["seed"] = String(deterministicSeed(from: seedSource))
+        }
+        return out
+    }
+
+    /// Stable seed in 0..<2^31-1 from an arbitrary source string
+    /// (SHA256 prefix — same source, same seed, on every machine).
+    static func deterministicSeed(from source: String) -> Int {
+        let digest = SHA256.hash(data: Data(source.utf8))
+        let bytes = Array(digest.prefix(4))
+        let value = bytes.reduce(0) { ($0 << 8) | Int($1) }
+        return value % 2_147_483_647
     }
 }
 

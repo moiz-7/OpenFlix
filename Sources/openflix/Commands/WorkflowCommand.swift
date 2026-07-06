@@ -93,6 +93,14 @@ struct WorkflowRun: AsyncParsableCommand {
                 let recipe = spec.stages[i].recipe.flatMap { RecipeStore.shared.get($0) }
                 spec.stages[i] = try WorkflowRecipeResolver.inline(stage: spec.stages[i], recipe: recipe)
             }
+            // styleLock.seedPolicy = fixed: pin one seed into the stage params
+            // so every fanout candidate (and any resume) reuses it.
+            for i in spec.stages.indices {
+                spec.stages[i].params = StyleLockSeed.apply(
+                    params: spec.stages[i].params,
+                    styleLock: spec.stages[i].styleLock,
+                    seedSource: "\(spec.name)|\(spec.stages[i].id)")
+            }
             prompts = try WorkflowParser.resolvedPrompts(spec)
         } catch let e as WorkflowSpecError {
             Output.failMessage(e.errorDescription ?? "invalid workflow", code: e.code)
@@ -125,14 +133,15 @@ struct WorkflowRun: AsyncParsableCommand {
                 }
             }
             let fanout = stage.fanout ?? 1
-            let cps = ProviderRegistry.shared.allModels
-                .first { $0.providerId == provider && $0.modelId == model }?
-                .costPerSecondUSD
-            let est = WorkflowCost.estimate(costPerSecondUSD: cps, duration: stage.duration, fanout: fanout)
+            let modelInfo = ProviderRegistry.shared.allModels
+                .first { $0.providerId == provider && $0.modelId == model }
+            let est = WorkflowCost.estimate(costPerSecondUSD: modelInfo?.costPerSecondUSD,
+                                            duration: stage.duration, fanout: fanout)
             resolved.append(ResolvedStage(
                 stage: stage, prompt: prompts[stage.id] ?? "",
                 provider: provider, model: model,
-                fanout: fanout, estCostUSD: est, routing: routing
+                fanout: fanout, estCostUSD: est, routing: routing,
+                supportsReference: modelInfo?.supportsImageToVideo
             ))
         }
         let totalEstimate = resolved.compactMap { $0.estCostUSD }.reduce(0, +)
@@ -237,6 +246,11 @@ struct WorkflowRun: AsyncParsableCommand {
                     startedAt: nil, completedAt: nil
                 )
             }
+            // Record reference intent up front (resolved_path stays null until
+            // the upstream node completes and the executor resolves it).
+            if let from = r.stage.referenceFrom {
+                initialNodes[r.stage.id]?.reference = NodeReferenceRecord(from: from, resolvedPath: nil)
+            }
         }
         _ = journal.create(runId: runId, kind: "workflow", name: spec.name,
                            projectId: project.id, nodes: initialNodes)
@@ -251,7 +265,10 @@ struct WorkflowRun: AsyncParsableCommand {
             timeout: timeout,
             journal: journal,
             runId: runId,
-            nodeHashes: nodeHashes
+            nodeHashes: nodeHashes,
+            referenceEdges: spec.stages.reduce(into: [:]) { edges, stage in
+                if let from = stage.referenceFrom { edges[stage.id] = from }
+            }
         )
 
         do {
@@ -288,7 +305,11 @@ struct WorkflowRun: AsyncParsableCommand {
                 aspectRatio: r.stage.aspectRatio,
                 width: nil,
                 height: nil,
-                referenceImageUrl: nil,
+                // Consistency intent: a stage-declared (or recipe-carried)
+                // reference image is passed through as-is; providers whose
+                // request supports a reference input use it. reference_from
+                // outputs override this at dispatch time (DAGExecutor).
+                referenceImageUrl: r.stage.referenceImages?.first,
                 referenceAssetName: nil,
                 extraParams: r.stage.params,
                 dependencies: r.stage.needs,
@@ -533,6 +554,10 @@ struct ResolvedStage {
     let fanout: Int
     let estCostUSD: Double?
     let routing: [String: Any]?
+    // Whether the resolved model supports image-to-video input (nil when the
+    // model is unknown to the pricing/capability table). Drives the honest
+    // dry-run note for reference_from stages.
+    var supportsReference: Bool? = nil
 
     /// Stable inputs hash for resume decisions. Raw route fields are hashed
     /// (not the smart-routing resolution) so a smart stage does not re-execute
@@ -555,6 +580,9 @@ struct ResolvedStage {
         if let v = stage.aspectRatio    { spec["aspect_ratio"] = v }
         if let v = stage.negativePrompt { spec["negative_prompt"] = v }
         if let v = stage.params         { spec["params"] = v }
+        if let v = stage.referenceFrom  { spec["reference_from"] = v }
+        if let v = stage.referenceImages { spec["reference_images"] = v }
+        if let v = stage.styleLock      { spec["style_lock_seed_policy"] = v.seedPolicy.rawValue }
         if let j = stage.judge {
             var jd: [String: Any] = ["keep": j.keep]
             if let m = j.minScore { jd["min_score"] = m }
@@ -575,6 +603,23 @@ struct ResolvedStage {
         if let v = stage.recipe { d["recipe"] = v }
         if let v = stage.duration { d["duration"] = v }
         if let v = estCostUSD { d["estimated_cost_usd"] = (v * 10000).rounded() / 10000 }
+        // Consistency intent (Wave 4): reference_from is recorded in the plan
+        // with resolved_path null (nothing has executed in a plan); the note
+        // is honest about providers that cannot consume a reference input.
+        if let from = stage.referenceFrom {
+            var rd: [String: Any] = ["from": from, "resolved_path": NSNull()]
+            if supportsReference == false {
+                rd["note"] = "provider does not support reference input"
+            }
+            d["reference"] = rd
+        }
+        if let imgs = stage.referenceImages, !imgs.isEmpty { d["reference_images"] = imgs }
+        if let sl = stage.styleLock {
+            var sd: [String: Any] = ["seed_policy": sl.seedPolicy.rawValue]
+            if let n = sl.notes { sd["notes"] = n }
+            if sl.seedPolicy == .fixed, let seed = stage.params?["seed"] { sd["seed"] = seed }
+            d["style_lock"] = sd
+        }
         if let j = stage.judge {
             var jd: [String: Any] = ["keep": j.keep, "note": "judging skipped in dry-run"]
             if let m = j.minScore { jd["min_score"] = m }

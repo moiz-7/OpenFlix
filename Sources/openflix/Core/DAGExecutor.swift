@@ -80,6 +80,11 @@ actor DAGExecutor {
     private let journal: RunJournal?
     private let runId: String?
     private let nodeHashes: [String: String]  // shot name → inputs hash
+    // reference_from edges (Wave 4): shot name → upstream shot name whose
+    // output feeds forward as the I2V reference. Resolution happens lazily at
+    // dispatch time (the upstream output does not exist before then).
+    private let referenceEdges: [String: String]
+    private var resolvedReferencePaths: [String: String] = [:]
 
     init(
         projectId: String,
@@ -93,7 +98,8 @@ actor DAGExecutor {
         qualityConfig: QualityConfig = QualityConfig(),
         journal: RunJournal? = nil,
         runId: String? = nil,
-        nodeHashes: [String: String] = [:]
+        nodeHashes: [String: String] = [:],
+        referenceEdges: [String: String] = [:]
     ) {
         self.projectId = projectId
         self.store = store
@@ -107,6 +113,7 @@ actor DAGExecutor {
         self.journal = journal
         self.runId = runId
         self.nodeHashes = nodeHashes
+        self.referenceEdges = referenceEdges
     }
 
     func execute() async throws -> Project {
@@ -204,6 +211,28 @@ actor DAGExecutor {
     }
 
     private func executeShot(_ shot: Shot, project: Project) async {
+        var shot = shot
+
+        // reference_from resolution: the upstream node has completed (DAG
+        // ordering guarantees it — normalization adds the edge to needs), so
+        // its selected output — remote video URL, or local path as fallback —
+        // is passed through as this shot's reference input. Providers whose
+        // request already supports a reference receive it; others ignore it
+        // (the plan/journal still record the intent honestly).
+        if let from = referenceEdges[shot.name] {
+            let upstream = store.get(projectId)?.allShots.first { $0.name == from }
+            let resolved = upstream?.selectedGenerationId
+                .flatMap { GenerationStore.shared.get($0) }
+                .flatMap { $0.remoteVideoURL ?? $0.localPath }
+            if let resolved {
+                resolvedReferencePaths[shot.name] = resolved
+                shot.referenceImageURL = resolved
+                store.updateShot(projectId: projectId, shotId: shot.id) { s in
+                    s.referenceImageURL = resolved
+                }
+            }
+        }
+
         // Mark dispatched
         store.updateShot(projectId: projectId, shotId: shot.id) { s in
             s.status = .dispatched
@@ -366,6 +395,9 @@ actor DAGExecutor {
         let hash = nodeHashes[shot.name] ?? RunJournal.inputsHash(for: shot)
         let outputPath = shot.selectedGenerationId
             .flatMap { GenerationStore.shared.get($0)?.localPath }
+        let reference = referenceEdges[shot.name].map {
+            NodeReferenceRecord(from: $0, resolvedPath: resolvedReferencePaths[shot.name])
+        }
         journal.upsertNode(runId: runId, NodeRecord(
             nodeId: shot.name,
             inputsHash: hash,
@@ -374,7 +406,8 @@ actor DAGExecutor {
             outputPath: outputPath,
             costUSD: shot.actualCostUSD,
             startedAt: shot.startedAt,
-            completedAt: shot.completedAt
+            completedAt: shot.completedAt,
+            reference: reference
         ))
     }
 
