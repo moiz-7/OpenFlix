@@ -104,7 +104,13 @@ final class RunJournal {
     func upsertNode(runId: String, _ node: NodeRecord) {
         lock.lock(); defer { lock.unlock() }
         guard var record = (try? Data(contentsOf: fileURL(runId)))
-            .flatMap({ try? decoder.decode(RunRecord.self, from: $0) }) else { return }
+            .flatMap({ try? decoder.decode(RunRecord.self, from: $0) }) else {
+            // Missing or corrupt run file (e.g. a crash mid-write): don't silently
+            // drop the node update — the journal would freeze and --resume would
+            // operate on stale state with no warning.
+            fputs("{\"warning\":\"run journal missing or unreadable; node '\(node.nodeId)' not recorded\",\"code\":\"journal_write_skipped\",\"run_id\":\"\(runId)\"}\n", stderr)
+            return
+        }
         record.nodes[node.nodeId] = node
         record.updatedAt = Date()
         persistLocked(record)

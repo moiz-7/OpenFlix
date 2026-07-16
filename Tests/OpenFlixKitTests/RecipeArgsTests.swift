@@ -27,6 +27,17 @@ final class RecipeArgsTests: XCTestCase {
         XCTAssertEqual(RecipeArgResolver.substitute("{{a}}", values: [:]), "{{a}}")
     }
 
+    func testSubstituteIsSinglePassAndDoesNotReExpandValues() {
+        // A value that itself contains a placeholder must NOT be re-expanded —
+        // the old per-key loop rescanned substituted text, so the result
+        // depended on unspecified dictionary iteration order (non-reproducible,
+        // and a value-injection vector). Single-pass makes this deterministic.
+        let out = RecipeArgResolver.substitute(
+            "a {{style}} scene",
+            values: ["style": "{{mood}}", "mood": "dark"])
+        XCTAssertEqual(out, "a {{mood}} scene")
+    }
+
     // MARK: - Resolution
 
     func testResolveUsesProvidedValueOverDefault() throws {
@@ -68,6 +79,17 @@ final class RecipeArgsTests: XCTestCase {
         }
         XCTAssertNoThrow(try RecipeArgResolver.resolve(
             args: [arg("n", type: "number")], provided: ["n": "4.5"]))
+    }
+
+    func testResolveRejectsNonFiniteNumbers() {
+        // Double("nan"/"inf"/"1e999") all parse — must be rejected so a
+        // non-finite value can't flow into numeric contexts (duration, budget).
+        for bad in ["nan", "inf", "infinity", "1e999"] {
+            XCTAssertThrowsError(try RecipeArgResolver.resolve(
+                args: [arg("n", type: "number")], provided: ["n": bad]), "accepted '\(bad)'") {
+                XCTAssertEqual(($0 as? RecipeArgError)?.code, "invalid_number")
+            }
+        }
     }
 
     func testResolveEnumValidation() {

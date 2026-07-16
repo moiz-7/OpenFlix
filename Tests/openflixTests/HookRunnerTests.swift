@@ -61,6 +61,34 @@ final class HookRunnerTests: XCTestCase {
         XCTAssertTrue(received.contains("fal"))
     }
 
+    func testPreHookVerboseVetoIsNotSwallowed() throws {
+        // Hook prints >64KB to stdout (filling the OS pipe buffer) and THEN
+        // vetoes. The old read-after-exit plumbing deadlocked here and reported
+        // a timeout — silently discarding the veto. Concurrent draining must
+        // preserve the nonzero-exit veto and its stderr detail.
+        try writeHook("pre-generate", script: """
+        cat > /dev/null
+        for i in $(seq 1 5000); do echo 'noisy-hook-output-padding-padding-padding-padding'; done
+        echo 'vetoed after noise' >&2
+        exit 1
+        """)
+        XCTAssertThrowsError(try HookRunner.runPreGenerate(spec: ["prompt": "x"])) { error in
+            guard let e = error as? OpenFlixError else { return XCTFail("wrong error type") }
+            XCTAssertEqual(e.code, "hook_veto")
+            XCTAssertTrue((e.errorDescription ?? "").contains("vetoed after noise"),
+                          "veto stderr lost (got: \(e.errorDescription ?? ""))")
+        }
+    }
+
+    func testPreHookIgnoringLargeStdinDoesNotHangOrCrash() throws {
+        // Hook exits immediately WITHOUT reading stdin. With a >64KB payload the
+        // old synchronous write blocked forever (hang) or crashed the CLI with
+        // SIGPIPE once the reader closed. Must now complete cleanly.
+        try writeHook("pre-generate", script: "exit 0")
+        let big = String(repeating: "x", count: 200_000)
+        XCTAssertNoThrow(try HookRunner.runPreGenerate(spec: ["prompt": big]))
+    }
+
     // MARK: - Post-generate
 
     func testPostHookNonzeroExitNeverThrows() throws {

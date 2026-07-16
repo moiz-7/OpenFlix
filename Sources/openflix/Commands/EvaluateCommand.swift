@@ -66,7 +66,7 @@ struct Evaluate: AsyncParsableCommand {
         if let v = threshold    { config.threshold = v }
         if let v = claudeApiKey { config.claudeApiKey = v }
         if let v = claudeModel  { config.claudeModel = v }
-        if let v = maxFrames    { config.maxFrames = v }
+        if let v = maxFrames    { config.maxFrames = max(1, v) }
 
         do {
             let result = try await QualityGate.evaluate(

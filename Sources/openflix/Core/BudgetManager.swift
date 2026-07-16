@@ -160,7 +160,13 @@ actor BudgetManager {
             var spend = loadSpend()
             spend.totalUSD += amount
             spend.generationCount += 1
-            try? saveSpend(spend)
+            do {
+                try saveSpend(spend)
+            } catch {
+                // Don't silently swallow: an un-persisted spend under-counts the
+                // daily/monthly totals and lets later checks exceed the limit.
+                fputs("{\"warning\":\"failed to persist spend ($\(amount)); budget limits may under-count\",\"code\":\"spend_persist_failed\",\"error\":\"\(error.localizedDescription)\"}\n", stderr)
+            }
         }
     }
 

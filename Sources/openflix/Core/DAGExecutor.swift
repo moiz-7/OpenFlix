@@ -7,7 +7,9 @@ struct DAGResolver {
     /// Topological sort with cycle detection (Kahn's algorithm).
     /// Returns shots grouped by parallelism level ("waves").
     static func resolve(shots: [Shot]) throws -> [[Shot]] {
-        let shotMap = Dictionary(uniqueKeysWithValues: shots.map { ($0.id, $0) })
+        // Tolerate duplicate ids here rather than trapping — malformed input
+        // should surface as a thrown/structured error upstream, never crash.
+        let shotMap = Dictionary(shots.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var inDegree: [String: Int] = [:]
         var dependents: [String: [String]] = [:]  // id → IDs that depend on it
 
@@ -19,7 +21,10 @@ struct DAGResolver {
         }
 
         var waves: [[Shot]] = []
+        // Sort the first wave by orderIndex too, so root-shot dispatch order is
+        // deterministic and consistent with every later wave (which is sorted).
         var queue = shots.filter { inDegree[$0.id, default: 0] == 0 }
+            .sorted { $0.orderIndex < $1.orderIndex }
         var processed = 0
 
         while !queue.isEmpty {
@@ -75,6 +80,7 @@ actor DAGExecutor {
     private let maxRetriesPerShot: Int
     let qualityConfig: QualityConfig
     private var cancelled = false
+    private var paused = false
     // Run journal (step 1 of the agentic engine): one record per node,
     // written incrementally (after each node) and atomically.
     private let journal: RunJournal?
@@ -103,7 +109,10 @@ actor DAGExecutor {
     ) {
         self.projectId = projectId
         self.store = store
-        self.maxConcurrency = maxConcurrency
+        // Clamp to >=1: a spec/flag value of 0 (or negative) would make the
+        // dispatch loop spin forever with zero available slots — a config-driven
+        // hang. At least one shot must always be dispatchable.
+        self.maxConcurrency = max(1, maxConcurrency)
         self.stream = stream
         self.apiKey = apiKey
         self.skipDownload = skipDownload
@@ -169,6 +178,27 @@ actor DAGExecutor {
             }
         }
 
+        // 3b. Drain orphaned shots. A shot whose dependency FAILED can never
+        // become ready (readyShots only counts succeeded/skipped deps), so it
+        // would otherwise sit .pending forever — and be miscounted as "not
+        // failed" in the status math below. Mark such shots .skipped(blocked)
+        // so they reach a terminal state and the final status is honest.
+        if !cancelled {
+            store.update(id: projectId) { p in
+                let terminalOK = Set(p.allShots
+                    .filter { $0.status == .succeeded || $0.status == .skipped }
+                    .map { $0.id })
+                for si in p.scenes.indices {
+                    for shi in p.scenes[si].shots.indices
+                    where p.scenes[si].shots[shi].status == .pending
+                        && !p.scenes[si].shots[shi].dependencies.allSatisfy({ terminalOK.contains($0) }) {
+                        p.scenes[si].shots[shi].status = .skipped
+                        p.scenes[si].shots[shi].errorMessage = "Blocked by upstream failure"
+                    }
+                }
+            }
+        }
+
         // 4. Compute final status
         guard var finalProject = store.get(projectId) else {
             throw OpenFlixError.generationNotFound(projectId)
@@ -176,20 +206,23 @@ actor DAGExecutor {
         let allShots = finalProject.allShots
         let succeeded = allShots.filter { $0.status == .succeeded }.count
         let failed = allShots.filter { $0.status == .failed }.count
-        let total = allShots.count
 
         let totalCost = allShots.compactMap { $0.actualCostUSD }.reduce(0, +)
 
-        if cancelled {
+        // Only report .succeeded when there are zero failures. Any residual
+        // (a hard failure, or a shot blocked by one) makes the run a partial
+        // failure if anything succeeded, otherwise a full failure. The old
+        // catch-all `else -> .succeeded` reported failed/empty runs as success.
+        if paused {
+            finalProject.status = .paused
+        } else if cancelled {
             finalProject.status = .cancelled
-        } else if succeeded == total {
+        } else if failed == 0 {
             finalProject.status = .succeeded
-        } else if failed > 0 && succeeded > 0 {
+        } else if succeeded > 0 {
             finalProject.status = .partialFailure
-        } else if failed == total {
-            finalProject.status = .failed
         } else {
-            finalProject.status = .succeeded
+            finalProject.status = .failed
         }
         finalProject.totalActualCostUSD = totalCost
         finalProject.completedAt = Date()
@@ -625,6 +658,7 @@ actor DAGExecutor {
     }
 
     func pause() {
+        paused = true
         cancelled = true
         store.update(id: projectId) { $0.status = .paused }
     }

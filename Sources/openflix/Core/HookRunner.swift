@@ -79,6 +79,11 @@ enum HookRunner {
         case failedToLaunch(String)
     }
 
+    /// Reference box so the stderr-draining background thread can hand its
+    /// bytes back. Safe without a lock: the DispatchGroup `wait()` establishes
+    /// a happens-before between the writer and the reader.
+    private final class DataBox { var data = Data() }
+
     private static func executableHook(named name: String) -> URL? {
         let url = hooksDirectory.appendingPathComponent(name)
         guard FileManager.default.isExecutableFile(atPath: url.path) else { return nil }
@@ -101,28 +106,57 @@ enum HookRunner {
         do { try process.run() }
         catch { return .failedToLaunch(error.localizedDescription) }
 
-        stdinPipe.fileHandleForWriting.write(payload)
-        stdinPipe.fileHandleForWriting.closeFile()
+        // Write stdin off-thread with NOSIGPIPE: a hook that never reads stdin
+        // would otherwise (a) block this call forever on a >64KB payload, or
+        // (b) crash the whole CLI with SIGPIPE once it exits and closes the
+        // read end. NOSIGPIPE turns that into a thrown EPIPE we can swallow.
+        let writeHandle = stdinPipe.fileHandleForWriting
+        _ = fcntl(writeHandle.fileDescriptor, F_SETNOSIGPIPE, 1)
+        DispatchQueue.global(qos: .userInitiated).async {
+            try? writeHandle.write(contentsOf: payload)
+            try? writeHandle.close()
+        }
+
+        // Drain stdout+stderr concurrently. If we only read *after* the process
+        // exits (as before), a hook that prints >64KB fills the OS pipe buffer,
+        // blocks on write, never exits, and is misclassified as a timeout —
+        // silently swallowing a legitimate nonzero-exit veto.
+        let stdoutHandle = stdoutPipe.fileHandleForReading
+        let stderrHandle = stderrPipe.fileHandleForReading
+        let drain = DispatchGroup()
+        let stderrBox = DataBox()
+        drain.enter()
+        DispatchQueue.global().async {
+            stderrBox.data = stderrHandle.readDataToEndOfFile()
+            drain.leave()
+        }
+        drain.enter()
+        DispatchQueue.global().async {
+            _ = stdoutHandle.readDataToEndOfFile()
+            drain.leave()
+        }
 
         // Wait with deadline; kill on expiry.
         let deadline = Date().addingTimeInterval(timeout)
         while process.isRunning && Date() < deadline {
             usleep(50_000)  // 50ms
         }
+        var timedOut = false
         if process.isRunning {
             process.terminate()
             // Give it a moment to die, then force-kill.
             usleep(200_000)
             if process.isRunning { kill(process.processIdentifier, SIGKILL) }
-            stderrPipe.fileHandleForReading.closeFile()
-            stdoutPipe.fileHandleForReading.closeFile()
-            return .timedOut
+            timedOut = true
         }
 
-        let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-        stderrPipe.fileHandleForReading.closeFile()
-        stdoutPipe.fileHandleForReading.closeFile()
-        let stderrText = String(data: stderrData.prefix(2000), encoding: .utf8) ?? ""
+        // Reads unblock once the process closes its pipe ends (on exit or kill).
+        drain.wait()
+        try? stdoutHandle.close()
+        try? stderrHandle.close()
+
+        if timedOut { return .timedOut }
+        let stderrText = String(data: stderrBox.data.prefix(2000), encoding: .utf8) ?? ""
         return .completed(status: process.terminationStatus, stderr: stderrText)
     }
 

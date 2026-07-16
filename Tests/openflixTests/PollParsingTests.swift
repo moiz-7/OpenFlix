@@ -17,6 +17,20 @@ final class PollParsingTests: XCTestCase {
         XCTAssertEqual(url.absoluteString, "https://replicate.delivery/output/video.mp4")
     }
 
+    func testReplicateSucceededWithSingleStringOutput() {
+        // Several Replicate video models return `output` as a bare URL string,
+        // not an array. This must be accepted, else a billed generation is
+        // wrongly reported as failed and the user gets nothing.
+        let json: [String: Any] = [
+            "status": "succeeded",
+            "output": "https://replicate.delivery/output/single.mp4",
+        ]
+        guard case .succeeded(let url) = ReplicateClient.parsePollStatus(json) else {
+            return XCTFail("Expected .succeeded for single-string output")
+        }
+        XCTAssertEqual(url.absoluteString, "https://replicate.delivery/output/single.mp4")
+    }
+
     func testReplicateSucceededWithoutOutputFails() {
         let json: [String: Any] = ["status": "succeeded"]
         guard case .failed(let message) = ReplicateClient.parsePollStatus(json) else {

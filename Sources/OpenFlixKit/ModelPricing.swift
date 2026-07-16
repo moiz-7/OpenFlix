@@ -60,8 +60,12 @@ public enum ModelPricing {
     }
 
     /// Up-front estimate: $/second × duration.
+    /// Guards non-finite/negative durations — a `NaN` estimate silently defeats
+    /// budget gates (every `NaN > limit` comparison is false), and a negative
+    /// duration yields a negative "credit".
     public static func estimate(durationSeconds: Double, modelId: String, providerId: String) -> Double {
-        costPerSecond(modelId, providerId: providerId) * durationSeconds
+        guard durationSeconds.isFinite, durationSeconds > 0 else { return 0 }
+        return costPerSecond(modelId, providerId: providerId) * durationSeconds
     }
 }
 
