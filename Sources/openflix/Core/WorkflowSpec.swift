@@ -288,7 +288,9 @@ enum WorkflowParser {
     /// referenced stage. Chains of prompt_from are followed; validation
     /// guarantees the graph is acyclic and references exist.
     static func resolvedPrompts(_ spec: WorkflowSpec) throws -> [String: String] {
-        let byId = Dictionary(uniqueKeysWithValues: spec.stages.map { ($0.id, $0) })
+        // Tolerate duplicate stage ids rather than trapping — parser validation
+        // rejects them upstream; this must not be a hard crash for stray input.
+        let byId = Dictionary(spec.stages.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var resolved: [String: String] = [:]
 
         func resolve(_ id: String, seen: Set<String>) throws -> String {

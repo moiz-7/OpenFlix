@@ -188,21 +188,39 @@ public enum RecipeArgResolver {
         return provided
     }
 
-    /// Replace exact `{{name}}` placeholders. Placeholders without a matching
-    /// value are left untouched (v2 recipes with literal braces are unaffected).
+    /// Replace exact `{{name}}` placeholders in a SINGLE left-to-right pass.
+    /// Placeholders without a matching value are left untouched (v2 recipes with
+    /// literal braces are unaffected).
+    ///
+    /// Single-pass matters: the old per-key loop rescanned already-substituted
+    /// text, so an arg *value* containing `{{other}}` was expanded or not
+    /// depending on unspecified dictionary order — non-reproducible output and a
+    /// value-injection vector. Here each source placeholder is resolved exactly
+    /// once and substituted values are never re-examined.
     public static func substitute(_ text: String, values: [String: String]) -> String {
         guard !values.isEmpty, text.contains("{{") else { return text }
-        var out = text
-        for (name, value) in values {
-            out = out.replacingOccurrences(of: "{{\(name)}}", with: value)
+        guard let regex = try? NSRegularExpression(pattern: "\\{\\{([^{}]+)\\}\\}") else { return text }
+        let ns = text as NSString
+        var result = ""
+        var lastEnd = 0
+        regex.enumerateMatches(in: text, range: NSRange(location: 0, length: ns.length)) { match, _, _ in
+            guard let match = match, match.numberOfRanges >= 2 else { return }
+            let full = match.range
+            result += ns.substring(with: NSRange(location: lastEnd, length: full.location - lastEnd))
+            let name = ns.substring(with: match.range(at: 1))
+            result += values[name] ?? ns.substring(with: full)
+            lastEnd = full.location + full.length
         }
-        return out
+        result += ns.substring(with: NSRange(location: lastEnd, length: ns.length - lastEnd))
+        return result
     }
 
     private static func checkValue(_ value: String, for arg: RecipeArg) throws {
         switch arg.type {
         case "number":
-            guard Double(value) != nil else {
+            // Double("nan"/"inf"/"1e999") all parse successfully — reject them so
+            // a non-finite value can't be substituted into numeric contexts.
+            guard let d = Double(value), d.isFinite else {
                 throw RecipeArgError.invalidNumber(name: arg.name, value: value)
             }
         case "enum":

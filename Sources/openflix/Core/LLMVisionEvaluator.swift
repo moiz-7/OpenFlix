@@ -48,7 +48,8 @@ struct LLMVisionEvaluator: VideoEvaluator {
         let duration = try await getVideoDuration(videoPath: videoPath)
         var frames: [Data] = []
 
-        for i in 0..<count {
+        // Defensive: a negative/zero frame count would trap `0..<count`.
+        for i in 0..<max(0, count) {
             let timestamp: Double
             if count == 1 {
                 timestamp = duration / 2
@@ -246,19 +247,22 @@ struct LLMVisionEvaluator: VideoEvaluator {
         var total: Double = 0
 
         for dim in dims {
-            let val: Double
+            let raw: Double
             if let v = response[dim] as? Double {
-                val = v
+                raw = v
             } else if let v = response[dim] as? Int {
-                val = Double(v)
+                raw = Double(v)
             } else {
-                val = 50 // default mid-score
+                raw = 50 // default mid-score
             }
+            // Clamp to [0,100]: a crafted prompt (or a hallucinated response) can
+            // return 999 or -20 and otherwise silently pass/fail any threshold.
+            let val = min(100, max(0, raw.isFinite ? raw : 50))
             dimensions[dim] = val
             total += val
         }
 
-        let avgScore = total / Double(dims.count)
+        let avgScore = total / Double(max(1, dims.count))
         let reasoning = (response["reasoning"] as? String) ?? "LLM evaluation completed"
 
         return EvaluationResult(

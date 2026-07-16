@@ -57,6 +57,25 @@ final class DAGResolverTests: XCTestCase {
         XCTAssertThrowsError(try DAGResolver.resolve(shots: shots))
     }
 
+    func testDuplicateShotIdsDoNotCrash() throws {
+        // Malformed input with duplicate ids must surface as a structured error
+        // upstream, never trap the process in Dictionary(uniqueKeysWithValues:).
+        let shots = [makeShot(id: "a"), makeShot(id: "a", order: 1)]
+        XCTAssertNoThrow(try DAGResolver.resolve(shots: shots))
+    }
+
+    func testFirstWaveSortedByOrderIndex() throws {
+        // Root shots (no deps) must dispatch in orderIndex order, like every
+        // later wave — previously the first wave used raw input order.
+        let shots = [
+            makeShot(id: "c", order: 2),
+            makeShot(id: "a", order: 0),
+            makeShot(id: "b", order: 1),
+        ]
+        let waves = try DAGResolver.resolve(shots: shots)
+        XCTAssertEqual(waves.first?.map(\.id), ["a", "b", "c"])
+    }
+
     func testReadyShotsOnlyIncludesPendingWithSatisfiedDeps() {
         let shots = [
             makeShot(id: "a", status: .succeeded),

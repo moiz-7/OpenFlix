@@ -136,6 +136,11 @@ struct HeuristicEvaluator: VideoEvaluator {
 
         do {
             try process.run()
+            // Drain stdout BEFORE waiting: `-show_streams -show_format` JSON for a
+            // file with many streams/metadata can exceed the ~64KB pipe buffer,
+            // so ffprobe would block on write while we block in waitUntilExit —
+            // a deadlock. readDataToEndOfFile consumes the pipe as it fills.
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
             process.waitUntilExit()
 
             guard process.terminationStatus == 0 else {
@@ -147,7 +152,6 @@ struct HeuristicEvaluator: VideoEvaluator {
                 return result
             }
 
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
             guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                 result.reasons.append("ffprobe output not parseable (partial credit)")
                 result.durationScore = 5

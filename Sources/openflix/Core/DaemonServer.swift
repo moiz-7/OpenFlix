@@ -215,7 +215,14 @@ actor DaemonServer {
             guard case .string(let genId) = request.params?["generation_id"] else {
                 return DaemonResponse.failure(id: request.id, code: "missing_param", message: "generation_id required")
             }
-            guard case .double(let score) = request.params?["score"] else {
+            // Accept both JSON number shapes: an integer literal decodes as
+            // `.int`, not `.double`, so `{"score": 80}` was wrongly rejected as
+            // missing (the MCP server already accepts both — this matches it).
+            let score: Double
+            switch request.params?["score"] {
+            case .double(let d): score = d
+            case .int(let i):    score = Double(i)
+            default:
                 return DaemonResponse.failure(id: request.id, code: "missing_param", message: "score required")
             }
             guard let gen = GenerationStore.shared.get(genId) else {

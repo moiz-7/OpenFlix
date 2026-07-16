@@ -22,6 +22,14 @@ final class ModelPricingTests: XCTestCase {
                                              providerId: "fal"), 1.2, accuracy: 1e-9)
     }
 
+    func testEstimateGuardsNonFiniteAndNegativeDurations() {
+        // A NaN estimate silently defeats budget gates (NaN > limit is always
+        // false); a negative duration would yield a negative "credit". Both → 0.
+        XCTAssertEqual(ModelPricing.estimate(durationSeconds: .nan, modelId: "fal-ai/veo3", providerId: "fal"), 0)
+        XCTAssertEqual(ModelPricing.estimate(durationSeconds: .infinity, modelId: "fal-ai/veo3", providerId: "fal"), 0)
+        XCTAssertEqual(ModelPricing.estimate(durationSeconds: -5, modelId: "fal-ai/veo3", providerId: "fal"), 0)
+    }
+
     func testEveryCatalogModelHasAnExplicitPricingEntry() {
         // Guards against adding a model to a provider catalog without adding
         // its price to the single table.

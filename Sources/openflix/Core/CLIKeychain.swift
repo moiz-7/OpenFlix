@@ -24,19 +24,27 @@ enum CLIKeychain {
     static func migrateKeychainIfNeeded() {
         // V1: migrate from com.meridian.vortex -> com.openflix.cli
         if !UserDefaults.standard.bool(forKey: migrationFlagV1) {
-            defer { UserDefaults.standard.set(true, forKey: migrationFlagV1) }
-            migrateKeys(from: oldServicePrefix, to: servicePrefix)
+            if migrateKeys(from: oldServicePrefix, to: servicePrefix) {
+                UserDefaults.standard.set(true, forKey: migrationFlagV1)
+            }
         }
 
         // V2: migrate from com.openflix.vortex -> com.openflix.cli
         if !UserDefaults.standard.bool(forKey: migrationFlagV2) {
-            defer { UserDefaults.standard.set(true, forKey: migrationFlagV2) }
-            migrateKeys(from: midServicePrefix, to: servicePrefix)
+            if migrateKeys(from: midServicePrefix, to: servicePrefix) {
+                UserDefaults.standard.set(true, forKey: migrationFlagV2)
+            }
         }
     }
 
     /// Migrate keychain entries from one service prefix to another.
-    private static func migrateKeys(from oldPrefix: String, to newPrefix: String) {
+    /// Returns `false` if a retryable failure (locked keychain) was hit, so the
+    /// caller leaves the migration flag unset and retries on a later launch —
+    /// previously the flag was set unconditionally, stranding keys forever if
+    /// the first post-upgrade run happened before the keychain was unlocked.
+    @discardableResult
+    private static func migrateKeys(from oldPrefix: String, to newPrefix: String) -> Bool {
+        var complete = true
         for provider in knownProviders {
             let oldService = "\(oldPrefix).\(provider)"
             let newService = "\(newPrefix).\(provider)"
@@ -49,6 +57,10 @@ enum CLIKeychain {
                 kSecReturnData: true,
                 kSecMatchLimit: kSecMatchLimitOne,
             ] as CFDictionary, &result)
+            if readStatus == errSecInteractionNotAllowed {
+                complete = false // keychain locked — don't mark migration done
+                continue
+            }
             guard readStatus == errSecSuccess, let data = result as? Data else { continue }
 
             // Write to new entry (only if it doesn't already exist)
@@ -65,6 +77,7 @@ enum CLIKeychain {
                 ] as CFDictionary)
             }
         }
+        return complete
     }
 
     // MARK: - Provider API Keys

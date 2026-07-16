@@ -28,7 +28,11 @@ public final class ReplicateClient: VideoProvider {
         if let v = request.negativePrompt, !v.isEmpty { input["negative_prompt"] = v }
         if let w = request.width    { input["width"] = w }
         if let h = request.height   { input["height"] = h }
-        if let d = request.durationSeconds { input["num_frames"] = Int(d * 8) }
+        if let d = request.durationSeconds, d.isFinite, d > 0 {
+            // Int(Double) traps on NaN/inf/overflow; workflow & MCP paths don't
+            // pre-validate duration the way `generate` does. Clamp defensively.
+            input["num_frames"] = Int((min(d, 60) * 8).rounded())
+        }
 
         guard let url = URL(string: "https://api.replicate.com/v1/predictions") else {
             throw ProviderError.invalidResponse("Invalid Replicate API URL")
@@ -86,8 +90,16 @@ public final class ReplicateClient: VideoProvider {
         case "starting", "processing":
             return .processing(progress: nil)
         case "succeeded":
-            let outputs = json?["output"] as? [String]
-            guard let first = outputs?.first, let url = URL(string: first) else {
+            // Replicate returns `output` as either an array of URLs or a single
+            // URL string depending on the model. Accept both, else a successful
+            // (billed) generation is falsely reported as failed.
+            let outputURL: String?
+            if let arr = json?["output"] as? [String] {
+                outputURL = arr.first
+            } else {
+                outputURL = json?["output"] as? String
+            }
+            guard let first = outputURL, let url = URL(string: first) else {
                 return .failed(message: "No output URL in Replicate response")
             }
             return .succeeded(videoURL: url)
