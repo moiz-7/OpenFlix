@@ -10,4 +10,23 @@ final class RegistryClientTests: XCTestCase {
         // Empty flag is treated as absent — never returns an empty string
         XCTAssertNotEqual(RegistryClient.resolveToken(flagValue: ""), "")
     }
+
+    func testSafePathTokenRejectsTraversal() {
+        // Traversal / slashes must be refused so a crafted id can't escape the
+        // /api/... path (`.urlPathAllowed` alone does NOT encode `/` or `.`).
+        XCTAssertNil(RegistryClient.safePathToken(".."))
+        XCTAssertNil(RegistryClient.safePathToken("../secret"))
+        XCTAssertNil(RegistryClient.safePathToken("a/b"))
+        XCTAssertNil(RegistryClient.safePathToken("a\\b"))
+        XCTAssertNil(RegistryClient.safePathToken(""))
+        XCTAssertEqual(RegistryClient.safePathToken("recipe-123"), "recipe-123")
+    }
+
+    func testFetchURLSchemeIsHTTPOnly() {
+        // Blocks file:// (local-file read) and other non-http schemes.
+        XCTAssertTrue(RegistryClient.isHTTPURL(URL(string: "https://registry.openflix.app/x")!))
+        XCTAssertTrue(RegistryClient.isHTTPURL(URL(string: "http://localhost:8000/x")!))
+        XCTAssertFalse(RegistryClient.isHTTPURL(URL(string: "file:///etc/passwd")!))
+        XCTAssertFalse(RegistryClient.isHTTPURL(URL(string: "ftp://host/x")!))
+    }
 }
