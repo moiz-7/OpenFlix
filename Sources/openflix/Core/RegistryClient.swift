@@ -42,9 +42,25 @@ enum RegistryClient {
         return (id: id, url: url)
     }
 
+    /// Reject a registry path segment (recipe/workflow id) that could escape the
+    /// intended API path — `..`, slashes, or backslashes → traversal on the
+    /// registry (`.urlPathAllowed` does NOT percent-encode `/` or `.`).
+    static func safePathToken(_ id: String) -> String? {
+        guard !id.isEmpty, !id.contains(".."), !id.contains("/"), !id.contains("\\") else { return nil }
+        return id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)
+    }
+
+    /// True if the URL uses an http(s) scheme — blocks `file://` (local-file
+    /// read) and other schemes from a `--url` import.
+    static func isHTTPURL(_ url: URL) -> Bool {
+        guard let s = url.scheme?.lowercased() else { return false }
+        return s == "http" || s == "https"
+    }
+
     /// Fetch a recipe bundle from the registry by ID.
     static func fetch(recipeId: String) async throws -> RecipeBundle {
-        guard let url = URL(string: "\(baseURL)/api/recipes/\(recipeId)/bundle") else {
+        guard let token = safePathToken(recipeId),
+              let url = URL(string: "\(baseURL)/api/recipes/\(token)/bundle") else {
             throw OpenFlixError.invalidResponse("Invalid registry URL for recipe: \(recipeId)")
         }
         let session = makeSession()
@@ -52,10 +68,10 @@ enum RegistryClient {
         return try RecipeBundle.decode(from: data)
     }
 
-    /// Fetch a recipe bundle from a full URL.
+    /// Fetch a recipe bundle from a full URL (`recipe import --url`).
     static func fetchFromURL(_ urlString: String) async throws -> RecipeBundle {
-        guard let url = URL(string: urlString) else {
-            throw OpenFlixError.invalidResponse("Invalid URL: \(urlString)")
+        guard let url = URL(string: urlString), isHTTPURL(url) else {
+            throw OpenFlixError.invalidResponse("Invalid or non-http(s) URL: \(urlString)")
         }
         let session = makeSession()
         let (data, _) = try await session.jsonData(for: URLRequest(url: url))
@@ -130,7 +146,7 @@ enum RegistryClient {
     /// all errors swallowed, never blocks or fails an import meaningfully.
     static func creditWorkflowDownload(id: String, base: String? = nil) async {
         let root = base ?? baseURL
-        guard let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+        guard let encoded = safePathToken(id),
               let url = URL(string: "\(root)/api/workflows/\(encoded)/download") else { return }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -145,7 +161,7 @@ enum RegistryClient {
     /// `base` overrides the default registry root (full-URL imports).
     static func fetchWorkflow(id: String, base: String? = nil) async throws -> [String: Any] {
         let root = base ?? baseURL
-        guard let encoded = id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+        guard let encoded = safePathToken(id),
               let url = URL(string: "\(root)/api/workflows/\(encoded)") else {
             throw OpenFlixError.invalidResponse("Invalid registry URL for workflow: \(id)")
         }
