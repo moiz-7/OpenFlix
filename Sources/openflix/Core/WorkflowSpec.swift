@@ -35,6 +35,12 @@ struct WorkflowSpec: Codable {
     var budgetUsd: Double?
     var stages: [WorkflowStage]
 
+    /// Upper bound on a stage's fanout (and, defensively, project scatter).
+    /// Each fanout unit is a real, billed generation; `fanout` also drives an
+    /// `Array(repeating:count:)` in the executor, so an unbounded value (e.g.
+    /// 1_000_000_000) means a memory blow-up plus a flood of paid requests.
+    static let maxFanout = 32
+
     enum CodingKeys: String, CodingKey {
         case name, stages
         case budgetUsd = "budget_usd"
@@ -118,7 +124,7 @@ enum WorkflowSpecError: Error, LocalizedError {
         case .unknownPromptFrom(let stage, let source):
             return "Stage '\(stage)' has prompt_from unknown stage '\(source)'"
         case .invalidFanout(let stage, let fanout):
-            return "Stage '\(stage)' has invalid fanout \(fanout) (must be >= 1)"
+            return "Stage '\(stage)' has invalid fanout \(fanout) (must be 1...\(WorkflowSpec.maxFanout))"
         case .invalidJudge(let stage, let reason):
             return "Stage '\(stage)' has invalid judge: \(reason)"
         case .unknownRoute(let stage, let route):
@@ -232,7 +238,7 @@ enum WorkflowParser {
                     throw WorkflowSpecError.unknownReference(stage: stage.id, source: src)
                 }
             }
-            if let f = stage.fanout, f < 1 {
+            if let f = stage.fanout, f < 1 || f > WorkflowSpec.maxFanout {
                 throw WorkflowSpecError.invalidFanout(stage: stage.id, fanout: f)
             }
             if let j = stage.judge {

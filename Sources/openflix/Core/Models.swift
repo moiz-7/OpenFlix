@@ -14,6 +14,12 @@ struct CLIGeneration: Codable {
     var widthPx: Int?
     var heightPx: Int?
     var durationSeconds: Double?
+    /// The original request inputs, persisted so `retry` faithfully resubmits an
+    /// image-to-video / parametrised job instead of a silently-different
+    /// text-to-video request with default params. Optional + defaulted so old
+    /// store records (which lack these keys) decode cleanly to nil.
+    var referenceImageURL: String? = nil
+    var extraParams: [String: AnyCodableValue]? = nil
     var remoteTaskId: String?
     var statusURL: String?
     var remoteVideoURL: String?
@@ -48,6 +54,7 @@ struct CLIGeneration: Codable {
         if let v = widthPx           { d["width_px"]              = v }
         if let v = heightPx          { d["height_px"]             = v }
         if let v = durationSeconds   { d["duration_seconds"]      = v }
+        if let v = referenceImageURL { d["reference_image_url"]   = v }
         if let v = remoteTaskId      { d["remote_task_id"]        = v }
         if let v = statusURL         { d["status_url"]             = v }
         if let v = remoteVideoURL    { d["remote_video_url"]      = v }
