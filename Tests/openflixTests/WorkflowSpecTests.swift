@@ -115,6 +115,22 @@ final class WorkflowSpecTests: XCTestCase {
         }
     }
 
+    func testRejectsFanoutAboveMax() throws {
+        // An unbounded fanout drives Array(repeating:count:) + one billed
+        // generation each, so it must be capped, not just floored at 1.
+        let tooBig = """
+        {"name": "x", "stages": [{"id": "a", "prompt": "p", "provider": "f", "model": "m", "fanout": \(WorkflowSpec.maxFanout + 1)}]}
+        """
+        XCTAssertThrowsError(try parse(tooBig)) { error in
+            XCTAssertEqual((error as? WorkflowSpecError)?.code, "invalid_fanout")
+        }
+        // The exact maximum is still allowed.
+        let atMax = """
+        {"name": "x", "stages": [{"id": "a", "prompt": "p", "provider": "f", "model": "m", "fanout": \(WorkflowSpec.maxFanout)}]}
+        """
+        XCTAssertEqual(try parse(atMax).stages[0].fanout, WorkflowSpec.maxFanout)
+    }
+
     // MARK: - Budget gate math
 
     func testBudgetGateProceedsWithoutLimit() {

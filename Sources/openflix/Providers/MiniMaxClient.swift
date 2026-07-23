@@ -37,7 +37,7 @@ final class MiniMaxClient: VideoProvider {
             "model": request.model,
             "prompt": request.prompt,
         ]
-        if let d = request.durationSeconds { body["duration"] = Int(d) }
+        if let d = request.durationInt() { body["duration"] = d }
         if let ref = request.referenceImageURL { body["first_frame_image"] = ref.absoluteString }
 
         var urlReq = URLRequest(url: base.appendingPathComponent("video_generation"))

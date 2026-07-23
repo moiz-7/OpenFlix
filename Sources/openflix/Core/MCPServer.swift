@@ -349,7 +349,11 @@ actor MCPServer {
             durationSeconds: gen.durationSeconds,
             aspectRatio: gen.aspectRatio,
             width: gen.widthPx,
-            height: gen.heightPx
+            height: gen.heightPx,
+            // Reproduce the original inputs — dropping these silently resubmits a
+            // different, still-billed generation (see RetryCommand).
+            referenceImageURL: gen.referenceImageURL.flatMap { URL(string: $0) },
+            extraParams: gen.extraParams?.mapValues { $0.toAny() } ?? [:]
         )
         return newGen.jsonRepresentation
     }

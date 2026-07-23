@@ -29,7 +29,7 @@ final class RunwayClient: VideoProvider {
             "model": request.model,
             "promptText": request.prompt,
         ]
-        if let d = request.durationSeconds { body["duration"] = Int(d) }
+        if let d = request.durationInt() { body["duration"] = d }
         let w = request.width ?? 1280, h = request.height ?? 720
         body["ratio"] = "\(w):\(h)"
         if let ref = request.referenceImageURL {

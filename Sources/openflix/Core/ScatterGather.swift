@@ -28,6 +28,13 @@ struct ScatterGatherExecutor {
         apiKey: String?,
         options: GenerationEngine.Options
     ) async -> [ScatterResult] {
+        // No targets → no work. `window` would otherwise be max(1, 0) == 1 and
+        // the priming loop would read targets[0] on an empty array and abort the
+        // whole run. The pinned scatter path (ProviderRouter.scatterTargets can
+        // return [] when no keys are configured or the capability filter empties
+        // the list) reaches here without the guard that the routed path gets.
+        guard !targets.isEmpty else { return [] }
+
         let imageURL = shot.referenceImageURL.flatMap { URL(string: $0) }
         let window = max(1, min(maxConcurrentScatter, targets.count))
 

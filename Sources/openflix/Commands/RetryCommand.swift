@@ -63,6 +63,12 @@ struct Retry: AsyncParsableCommand {
             maxRetries: 0
         )
 
+        // Faithfully reproduce the original request — a reference image or extra
+        // params (seed, audio, …) dropped here would silently resubmit a
+        // *different*, still-billed generation, contradicting "same parameters".
+        let refURL = original.referenceImageURL.flatMap { URL(string: $0) }
+        let extras: [String: Any] = original.extraParams?.mapValues { $0.toAny() } ?? [:]
+
         do {
             let gen: CLIGeneration
             if wait || stream {
@@ -75,6 +81,8 @@ struct Retry: AsyncParsableCommand {
                     aspectRatio: original.aspectRatio,
                     width: original.widthPx,
                     height: original.heightPx,
+                    referenceImageURL: refURL,
+                    extraParams: extras,
                     apiKey: apiKey,
                     options: opts
                 )
@@ -88,6 +96,8 @@ struct Retry: AsyncParsableCommand {
                     aspectRatio: original.aspectRatio,
                     width: original.widthPx,
                     height: original.heightPx,
+                    referenceImageURL: refURL,
+                    extraParams: extras,
                     apiKey: apiKey
                 )
             }
