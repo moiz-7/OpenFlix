@@ -3,6 +3,8 @@
 *.d
 .DS_Store
 
-# Internal reports
-*-report.md
-openflix-strategy.md
+# NOTE: `*-report.md` and `openflix-strategy.md` used to be ignored here. They
+# are the project's decision record, and they were reachable from NO repo (this
+# one ignored them; the outer monorepo ignores all of VortexCLI/) — so they
+# existed on exactly one disk, one `rm -rf` from gone. They are tracked now.
+# Follow-up: archive the finished ones under docs/archive/ (see handoff notes).
