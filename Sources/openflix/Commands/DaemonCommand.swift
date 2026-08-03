@@ -52,12 +52,58 @@ struct DaemonStart: AsyncParsableCommand {
                 // Block forever — daemon runs until killed
             }
         } else {
-            // Background: fork/exec is complex in Swift. For now, suggest nohup.
+            // Actually daemonize. This used to print a suggestion to run nohup
+            // yourself and exit 0 — so `openflix daemon start` reported success
+            // while starting nothing, and `daemon status` then said the daemon
+            // was down. Re-exec ourselves with --foreground, detached.
+            try Self.spawnDetached()
+
+            // Wait briefly for the socket so we report the truth rather than
+            // an optimistic "started".
+            var pid: Int?
+            for _ in 0..<40 {   // up to ~2s
+                try await Task.sleep(nanoseconds: 50_000_000)
+                let (running, p) = DaemonServer.isRunning()
+                if running { pid = p; break }
+            }
+            guard let pid else {
+                Output.failMessage(
+                    "Daemon did not come up within 2s — run 'openflix daemon start --foreground' to see why.",
+                    code: "daemon_start_failed")
+            }
             Output.emitDict([
-                "message": "Use 'nohup openflix daemon start --foreground &' to run in background",
+                "event": "daemon.started",
                 "socket": DaemonServer.defaultSocketPath,
+                "pid": pid,
+                "foreground": false,
             ])
         }
+    }
+
+    /// Re-exec this binary as `daemon start --foreground`, detached from the
+    /// terminal, with stdio pointed at a log file so failures are diagnosable.
+    private static func spawnDetached() throws {
+        let exe = URL(fileURLWithPath: CommandLine.arguments[0]).standardizedFileURL
+        let logDir = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".openflix", isDirectory: true)
+        try? FileManager.default.createDirectory(at: logDir, withIntermediateDirectories: true)
+        let logURL = logDir.appendingPathComponent("daemon.log")
+        if !FileManager.default.fileExists(atPath: logURL.path) {
+            FileManager.default.createFile(atPath: logURL.path, contents: nil)
+        }
+        guard let logHandle = FileHandle(forWritingAtPath: logURL.path) else {
+            throw OpenFlixError.invalidResponse("Cannot open daemon log at \(logURL.path)")
+        }
+        logHandle.seekToEndOfFile()
+
+        let process = Process()
+        process.executableURL = exe
+        process.arguments = ["daemon", "start", "--foreground"]
+        process.standardOutput = logHandle
+        process.standardError = logHandle
+        process.standardInput = FileHandle.nullDevice
+        try process.run()
+        // Deliberately not waiting: the child outlives this process.
     }
 }
 

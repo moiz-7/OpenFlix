@@ -1,0 +1,25 @@
+class Openflix < Formula
+  desc "AI video generation CLI — multi-provider, recipes, orchestration, quality gate, MCP server"
+  homepage "https://github.com/moiz-7/OpenFlix"
+  url "__URL__"
+  sha256 "__SHA__"
+  license :cannot_represent # proprietary — see LICENSE in the repo
+  version "__VERSION__"
+
+  depends_on :macos
+  depends_on macos: :sonoma # macOS 14+
+  # No `depends_on arch:` — the release binary is universal (arm64 + x86_64).
+  # v1.0.0 was arm64-only with no guard, so Intel Macs installed a binary that
+  # could not execute; the release workflow now verifies both slices exist.
+
+  def install
+    bin.install "openflix"
+  end
+
+  test do
+    assert_match "__VERSION__", shell_output("#{bin}/openflix --version")
+    # CLI is JSON-first: providers list emits JSON on stdout
+    output = shell_output("#{bin}/openflix providers list")
+    assert_match "fal", output
+  end
+end

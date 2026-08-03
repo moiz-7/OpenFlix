@@ -1,5 +1,6 @@
 import ArgumentParser
 import Foundation
+import OpenFlixKit
 
 @main
 struct OpenFlix: AsyncParsableCommand {
@@ -56,7 +57,7 @@ struct OpenFlix: AsyncParsableCommand {
           ~/.openflix/downloads/       Downloaded videos
           ~/.openflix/projects/        Project data
         """,
-        version: "1.0.0",
+        version: OpenFlixVersion.current,
         subcommands: [
             Quickstart.self,
             Generate.self,
