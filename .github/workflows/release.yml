@@ -19,14 +19,39 @@ jobs:
           sudo xcode-select -s "$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
           swift --version
 
-      - name: Build release binary
-        run: swift build -c release
+      - name: Build universal release binary
+        # v1.0.0 shipped arm64-only with no arch guard in the Homebrew formula,
+        # so every Intel Mac installed a binary that could not execute. Build
+        # both slices instead of gating the formula — one artifact, all Macs.
+        run: swift build -c release --arch arm64 --arch x86_64
+
+      - name: Verify the binary is universal
+        run: |
+          BIN=$(swift build -c release --arch arm64 --arch x86_64 --show-bin-path)/openflix
+          echo "BIN=$BIN" >> "$GITHUB_ENV"
+          file "$BIN"
+          for slice in arm64 x86_64; do
+            lipo -info "$BIN" | grep -q "$slice" || {
+              echo "::error::release binary is missing the $slice slice"; exit 1; }
+          done
+
+      - name: Verify the tag matches the compiled-in version
+        # Guards against a v1.1.0 tag shipping a binary that reports 1.0.0.
+        # OpenFlixVersion.current (Sources/OpenFlixKit/Version.swift) is the
+        # single source of truth; the tag must agree with it.
+        run: |
+          BINARY_VERSION="$("$BIN" --version | tr -d '[:space:]')"
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          echo "binary=$BINARY_VERSION tag=$TAG_VERSION"
+          [ "$BINARY_VERSION" = "$TAG_VERSION" ] || {
+            echo "::error::tag ${GITHUB_REF_NAME} != OpenFlixVersion.current ($BINARY_VERSION). Bump Sources/OpenFlixKit/Version.swift."
+            exit 1; }
 
       - name: Package
         run: |
           ARCHIVE="openflix-${GITHUB_REF_NAME}-macos.tar.gz"
           mkdir -p dist
-          tar -czf "dist/${ARCHIVE}" -C .build/release openflix
+          tar -czf "dist/${ARCHIVE}" -C "$(dirname "$BIN")" openflix
           echo "ARCHIVE=${ARCHIVE}" >> "$GITHUB_ENV"
 
       - name: Create GitHub release
@@ -37,15 +62,20 @@ jobs:
             --title "OpenFlix CLI ${GITHUB_REF_NAME}" \
             --generate-notes
 
-      - name: Print sha256 for the Homebrew formula
+      - name: Emit the ready-to-paste Homebrew formula
+        # The sha256 bump was a manual copy-paste step, which is how the tap
+        # went stale. Emit the complete formula body so updating the tap is a
+        # single paste, not hand-editing three fields.
         run: |
           SHA=$(shasum -a 256 "dist/${ARCHIVE}" | awk '{print $1}')
-          echo "sha256: ${SHA}"
-          echo "Update homebrew-tap/Formula/openflix.rb: point url at the ${GITHUB_REF_NAME} release asset and set sha256 to the value above."
+          VERSION="${GITHUB_REF_NAME#v}"
           {
-            echo "## Release asset checksum"
+            echo "## Homebrew formula for ${GITHUB_REF_NAME}"
+            echo "Replace \`homebrew-tap/Formula/openflix.rb\` with:"
+            echo '```ruby'
+            sed -e "s|__URL__|https://github.com/moiz-7/OpenFlix/releases/download/${GITHUB_REF_NAME}/${ARCHIVE}|" \
+                -e "s|__SHA__|${SHA}|" \
+                -e "s|__VERSION__|${VERSION}|" \
+                .github/openflix.rb.template
             echo '```'
-            echo "${ARCHIVE}  sha256=${SHA}"
-            echo '```'
-            echo "Update \`homebrew-tap/Formula/openflix.rb\` with this sha256 and the new version url."
           } >> "$GITHUB_STEP_SUMMARY"

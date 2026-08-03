@@ -76,7 +76,7 @@ actor MCPServer {
             ]),
             "serverInfo": .dictionary([
                 "name": .string("openflix"),
-                "version": .string("1.0.0"),
+                "version": .string(OpenFlixVersion.current),
             ]),
         ]))
     }

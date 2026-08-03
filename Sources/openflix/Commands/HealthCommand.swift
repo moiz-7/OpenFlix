@@ -50,14 +50,34 @@ struct Health: AsyncParsableCommand {
         var providerResults: [[String: Any]] = []
         var allConfigured = true
         for prov in registry.all {
-            // Keyless providers (local ComfyUI) are always "configured".
+            // Keyless providers (local ComfyUI) need no key — but "no key
+            // required" is not the same as "ready to run". The shipped ComfyUI
+            // graph is an explicit placeholder (class_type
+            // REPLACE_THIS_PLACEHOLDER_GRAPH) that the server rejects, so
+            // reporting a bare `configured: true` told users a provider was
+            // ready when every submission would fail.
             if CLIKeychain.keylessProviders.contains(prov.providerId) {
-                providerResults.append([
+                var entry: [String: Any] = [
                     "provider": prov.providerId,
                     "display_name": prov.displayName,
-                    "configured": true,
                     "keyless": true,
-                ])
+                ]
+                if prov.providerId == "local" {
+                    let graphPath = ("~/.openflix/comfyui-graph.json" as NSString).expandingTildeInPath
+                    let hasGraph = FileManager.default.fileExists(atPath: graphPath)
+                    entry["configured"] = hasGraph
+                    entry["graph_path"] = graphPath
+                    if !hasGraph {
+                        entry["hint"] = "No workflow graph. Export one from ComfyUI with "
+                            + "'Save (API Format)', add {{prompt}}/{{negative_prompt}}/{{seed}}/"
+                            + "{{duration}} placeholders, and save it to \(graphPath). "
+                            + "The built-in graph is a placeholder and will be rejected."
+                        allConfigured = false
+                    }
+                } else {
+                    entry["configured"] = true
+                }
+                providerResults.append(entry)
                 continue
             }
             let hasKeychain = CLIKeychain.hasKey(provider: prov.providerId)
