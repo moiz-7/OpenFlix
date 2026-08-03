@@ -85,6 +85,16 @@ struct Status: AsyncParsableCommand {
                 gen.remoteVideoURL = videoURL.absoluteString
                 gen.completedAt = Date()
                 gen.actualCostUSD = gen.estimatedCostUSD
+                // Record spend here too — this single-poll path is the one that
+                // flips the generation terminal, and the budget ledger only ever
+                // saw spend recorded by waitForCompletion. Peeking a generation
+                // to completion via plain `status` used to leave its cost off the
+                // ledger, under-counting daily/monthly totals for later gates.
+                // Exactly-once: the record is now terminal, so no later poll
+                // re-enters this branch.
+                if let cost = gen.actualCostUSD {
+                    await BudgetManager.shared.recordSpend(amount: cost)
+                }
             case .failed(let message): gen.status = .failed; gen.errorMessage = message
             }
             GenerationStore.shared.update(id: gen.id) { g in

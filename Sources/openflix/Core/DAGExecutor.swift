@@ -1,4 +1,5 @@
 import Foundation
+import OpenFlixKit
 
 // MARK: - DAG Resolution
 
@@ -312,14 +313,34 @@ actor DAGExecutor {
             return
         }
 
-        // Check cost budget
+        // Check cost budget. Count spend already billed (completed shots) PLUS
+        // the estimated cost of shots already dispatched but not yet complete —
+        // without the in-flight estimate, every shot in a concurrent wave reads
+        // $0 billed and dispatches, so total spend could reach maxConcurrency ×
+        // budget before the first shot completes.
         if let budget = project.costBudgetUSD {
-            let currentCost = store.get(projectId)?.allShots
-                .compactMap { $0.actualCostUSD }.reduce(0, +) ?? 0
+            let shots = store.get(projectId)?.allShots ?? []
+            let currentCost = shots.reduce(0.0) { acc, s in
+                if let actual = s.actualCostUSD { return acc + actual }        // billed
+                if s.status == .processing { return acc + (s.estimatedCostUSD ?? 0) } // reserved
+                return acc
+            }
             if currentCost >= budget {
                 markShotFailed(shot.id, error: "Cost budget exceeded (\(currentCost) >= \(budget) USD)")
                 return
             }
+        }
+
+        // Reserve this shot's estimated cost synchronously (no await before the
+        // dispatch below), so the next shot's budget check above sees it as
+        // in-flight. Routed shots already have an estimate; pinned shots don't,
+        // so compute one from the pricing table.
+        let reservedEstimate = ModelPricing.estimate(
+            durationSeconds: shot.duration ?? GenerationEngine.defaultBillableDurationSeconds,
+            modelId: modelID, providerId: providerID)
+        store.updateShot(projectId: projectId, shotId: shot.id) { s in
+            if s.estimatedCostUSD == nil { s.estimatedCostUSD = reservedEstimate }
+            s.status = .processing
         }
 
         // Fanout / scatter-gather / single dispatch
@@ -338,7 +359,11 @@ actor DAGExecutor {
     /// Workflow fanout: N candidates from the SAME provider/model via the
     /// existing scatter executor, then judge with the existing evaluator
     /// machinery and keep the top K (JudgeSelector is the pure part).
-    private func executeFanoutShot(shot: Shot, count: Int, providerID: String, modelID: String) async {
+    private func executeFanoutShot(shot: Shot, count rawCount: Int, providerID: String, modelID: String) async {
+        // Clamp defensively: workflow specs are bounded by WorkflowSpec.validate,
+        // but a project shot can carry an arbitrary `fanout`, and this drives an
+        // eager Array(repeating:count:) plus one billed generation each.
+        let count = max(1, min(rawCount, WorkflowSpec.maxFanout))
         let targets = Array(repeating: (provider: providerID, model: modelID), count: count)
         let options = GenerationEngine.Options(
             pollInterval: 3,
@@ -589,6 +614,10 @@ actor DAGExecutor {
     private func executeScatterGather(shot: Shot, count: Int, providerID: String, modelID: String) async {
         let available = ProviderRouter.availableProviders()
         let targets = ProviderRouter.scatterTargets(shot: shot, count: count, availableProviders: available)
+        guard !targets.isEmpty else {
+            markShotFailed(shot.id, error: "No scatter targets available — configure provider API keys or relax the shot's model constraints.")
+            return
+        }
 
         let options = GenerationEngine.Options(
             pollInterval: 3,

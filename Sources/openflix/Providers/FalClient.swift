@@ -37,7 +37,7 @@ final class FalClient: VideoProvider {
     func submit(request: GenerationRequest, apiKey: String) async throws -> GenerationSubmission {
         var body: [String: Any] = ["prompt": request.prompt]
         if let v = request.negativePrompt, !v.isEmpty { body["negative_prompt"] = v }
-        if let d = request.durationSeconds { body["duration"] = "\(Int(d))" }
+        if let d = request.durationInt() { body["duration"] = "\(d)" }
         if let ar = request.aspectRatio { body["aspect_ratio"] = ar }
         if let ref = request.referenceImageURL { body["image_url"] = ref.absoluteString }
         // Forward extra params (audio, seed, camera_fixed, etc.)

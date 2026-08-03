@@ -63,7 +63,7 @@ struct Generate: AsyncParsableCommand {
     @Option(name: .long, help: "Negative prompt (what to avoid)")
     var negativePrompt: String?
 
-    @Option(name: .long, help: "Reference image URL or local path (for image-to-video models)")
+    @Option(name: .long, help: "Reference image — public http(s) URL (for image-to-video models). Local files aren't uploaded.")
     var image: String?
 
     // MARK: - Extra params (Seedance, etc.)
@@ -166,20 +166,20 @@ struct Generate: AsyncParsableCommand {
                 Output.failMessage("--duration \(d)s exceeds model max \(max)s.", code: "invalid_input")
             }
         }
-        if let img = image, !img.hasPrefix("http") {
-            guard FileManager.default.fileExists(atPath: (img as NSString).expandingTildeInPath) else {
-                Output.failMessage("Image file not found: \(img)", code: "invalid_input")
-            }
-        }
-
-        // Build reference image URL
+        // Reference images are fetched by the provider from a URL; a local file
+        // path can't be reached by a remote provider (no upload path exists), so
+        // reject it up front rather than billing a generation that can't use it.
         var refURL: URL?
         if let img = image {
-            if img.hasPrefix("http") {
-                refURL = URL(string: img)
-            } else {
-                refURL = URL(fileURLWithPath: img)
+            guard img.hasPrefix("http://") || img.hasPrefix("https://") else {
+                Output.failMessage(
+                    "Reference image must be a public http(s) URL — local files aren't uploaded to the provider (got: \(img)). Upload the image and pass its URL.",
+                    code: "invalid_input")
             }
+            guard let u = URL(string: img) else {
+                Output.failMessage("Invalid reference image URL: \(img)", code: "invalid_input")
+            }
+            refURL = u
         }
 
         // Parse extra params

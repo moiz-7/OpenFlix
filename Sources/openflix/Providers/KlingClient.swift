@@ -32,7 +32,7 @@ final class KlingClient: VideoProvider {
             "model": request.model,
             "prompt": request.prompt,
         ]
-        if let d = request.durationSeconds { body["duration"] = Int(d) }
+        if let d = request.durationInt() { body["duration"] = d }
         if let ar = request.aspectRatio { body["aspect_ratio"] = ar }
         if let ref = request.referenceImageURL { body["image"] = ref.absoluteString }
         if let v = request.negativePrompt, !v.isEmpty { body["negative_prompt"] = v }

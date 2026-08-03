@@ -31,6 +31,10 @@ final class GenerationEngine {
         let provider = try ProviderRegistry.shared.provider(for: providerID)
         let key = try CLIKeychain.resolveKey(provider: providerID, flagValue: apiKey)
 
+        // Reference-image pre-flight: reject a local file reference before we
+        // run hooks or bill a generation the provider can't use (see helper).
+        try validateReferenceImage(referenceImageURL, providerID: providerID)
+
         // Prompt safety pre-flight
         let safety = PromptSafetyChecker.check(prompt)
         if safety.level == .blocked {
@@ -65,15 +69,11 @@ final class GenerationEngine {
             extraParams: extraParams
         )
 
-        // Budget pre-flight check (estimate from provider model costs)
+        // Budget pre-flight check (estimate from provider model costs).
         let allModels = ProviderRegistry.shared.allModels
-        let estCost: Double
-        if let modelInfo = allModels.first(where: { $0.providerId == providerID && $0.modelId == model }),
-           let cps = modelInfo.costPerSecondUSD, let dur = durationSeconds {
-            estCost = cps * dur
-        } else {
-            estCost = 0
-        }
+        let modelInfo = allModels.first { $0.providerId == providerID && $0.modelId == model }
+        let estCost = preflightEstimate(durationSeconds: durationSeconds,
+                                        costPerSecondUSD: modelInfo?.costPerSecondUSD)
         if estCost > 0 {
             let budgetCheck = await BudgetManager.shared.preFlightCheck(estimatedCost: estCost)
             if case .denied(let reason) = budgetCheck {
@@ -96,6 +96,8 @@ final class GenerationEngine {
             widthPx: width,
             heightPx: height,
             durationSeconds: durationSeconds,
+            referenceImageURL: referenceImageURL?.absoluteString,
+            extraParams: extraParams.isEmpty ? nil : extraParams.mapValues { AnyCodableValue.from($0) },
             remoteTaskId: submission.remoteTaskId,
             statusURL: submission.statusURL?.absoluteString,
             remoteVideoURL: nil,
@@ -313,4 +315,45 @@ final class GenerationEngine {
     }
 
     private static func now() -> String { ISO8601DateFormatter().string(from: Date()) }
+
+    // MARK: - Pre-flight helpers (pure, unit-tested)
+
+    /// Nominal duration used to estimate cost when the caller gives none.
+    /// Providers bill their own default duration in that case, so the gate
+    /// must estimate *something* rather than $0.
+    static let defaultBillableDurationSeconds: Double = 4
+
+    /// Up-front cost estimate for the budget pre-flight gate.
+    ///
+    /// The gate runs BEFORE submission, so it can't use the provider's
+    /// post-submit estimate. Two sharp edges this closes:
+    ///   • No `--duration` → the provider still bills its default duration, so
+    ///     estimating $0 (the old behaviour) let a strict daily/monthly/
+    ///     per-generation budget be bypassed by simply omitting duration. We
+    ///     fall back to a nominal default so the gate always runs.
+    ///   • A non-finite duration makes `cps * dur` NaN, and `NaN > limit` is
+    ///     always false — silently defeating the gate. We sanitise first.
+    static func preflightEstimate(durationSeconds: Double?, costPerSecondUSD: Double?) -> Double {
+        guard let cps = costPerSecondUSD, cps > 0 else { return 0 }
+        let raw = durationSeconds ?? defaultBillableDurationSeconds
+        let dur = (raw.isFinite && raw > 0) ? raw : defaultBillableDurationSeconds
+        return cps * dur
+    }
+
+    /// Reference images are sent to the provider *by URL* — the provider
+    /// fetches them itself. A local file path (turned into a `file://` URL by
+    /// the `generate` command, or a bare scheme-less path by the workflow/
+    /// batch/project paths that use `URL(string:)`) is not reachable by a
+    /// remote provider, so the generation would be billed and then fail to use
+    /// the image, or fail outright with an opaque provider error. Reject it up
+    /// front with an actionable message. The "local" provider (ComfyUI) runs on
+    /// the same machine, so it is exempt.
+    static func validateReferenceImage(_ url: URL?, providerID: String) throws {
+        guard let url, providerID != "local" else { return }
+        let scheme = url.scheme?.lowercased()
+        guard scheme == "http" || scheme == "https" else {
+            throw OpenFlixError.invalidResponse(
+                "Reference image must be a public http(s) URL — local files aren't uploaded to \(providerID) (got: \(url.absoluteString)). Upload the image and pass its URL.")
+        }
+    }
 }

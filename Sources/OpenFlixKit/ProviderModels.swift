@@ -73,6 +73,22 @@ public struct GenerationRequest {
         self.aspectRatio = aspectRatio
         self.extraParams = extraParams
     }
+
+    /// Non-trapping integer duration for provider request bodies.
+    ///
+    /// `Int(Double)` traps (aborts the process) on NaN, ±infinity, and
+    /// overflow. Only the `generate` command validates duration at the flag
+    /// boundary — the workflow, MCP, batch, recipe, project and scatter-gather
+    /// paths reach provider clients with whatever duration they were handed, so
+    /// every provider that puts `Int(durationSeconds)` in its request body
+    /// could crash the whole CLI on a hostile or buggy value. Returns nil (→
+    /// the provider falls back to its own default) for a missing, non-finite,
+    /// or non-positive duration, and clamps absurd values before the `Int`
+    /// conversion.
+    public func durationInt(max: Double = 3600) -> Int? {
+        guard let d = durationSeconds, d.isFinite, d > 0 else { return nil }
+        return Int(Swift.min(d, max).rounded())
+    }
 }
 
 public struct GenerationSubmission {
