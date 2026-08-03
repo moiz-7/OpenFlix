@@ -16,9 +16,22 @@ final class RunwayClient: VideoProvider {
     ]
 
     private let session = makeSession()
+
+    /// Runway's public developer API is `api.dev.runwayml.com`;
+    /// `api.runwayml.com` is the app backend and rejects these calls. The old
+    /// hardcoded value was almost certainly never exercised against the live
+    /// service (the X-Runway-Version header is correct, which is the tell of a
+    /// doc-derived integration). Overridable so a base-URL change doesn't need
+    /// a release.
+    static let defaultBase = "https://api.dev.runwayml.com/v1"
     private static let base: URL = {
-        guard let url = URL(string: "https://api.runwayml.com/v1") else {
-            fatalError("Invalid static Runway API URL")
+        let raw = ProcessInfo.processInfo.environment["OPENFLIX_RUNWAY_BASE_URL"] ?? defaultBase
+        guard let url = URL(string: raw) else {
+            guard let fallback = URL(string: defaultBase) else {
+                fatalError("Invalid static Runway API URL")
+            }
+            fputs("{\"warning\":\"Invalid OPENFLIX_RUNWAY_BASE_URL, using default\",\"code\":\"invalid_base_url\"}\n", stderr)
+            return fallback
         }
         return url
     }()

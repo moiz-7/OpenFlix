@@ -34,17 +34,12 @@ public final class ReplicateClient: VideoProvider {
             input["num_frames"] = Int((min(d, 60) * 8).rounded())
         }
 
-        guard let url = URL(string: "https://api.replicate.com/v1/predictions") else {
-            throw ProviderError.invalidResponse("Invalid Replicate API URL")
-        }
-        var urlReq = URLRequest(url: url)
+        let route = try Self.submitRoute(model: request.model, input: input)
+        var urlReq = URLRequest(url: route.url)
         urlReq.httpMethod = "POST"
         urlReq.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         urlReq.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        urlReq.httpBody = try JSONSerialization.data(withJSONObject: [
-            "version": request.model,
-            "input": input,
-        ])
+        urlReq.httpBody = try JSONSerialization.data(withJSONObject: route.body)
 
         let (data, _) = try await session.jsonData(for: urlReq)
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -79,6 +74,55 @@ public final class ReplicateClient: VideoProvider {
         let (data, _) = try await session.jsonData(for: urlReq)
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
         return Self.parsePollStatus(json)
+    }
+
+    /// Choose the correct Replicate submit endpoint and body for a model id.
+    ///
+    /// Replicate has two distinct submit routes and the wrong one 422s:
+    ///   - a pinned VERSION (a 64-char hex hash) goes to `/v1/predictions`
+    ///     with `{"version": "<hash>", "input": {...}}`
+    ///   - an official MODEL SLUG ("owner/name") goes to
+    ///     `/v1/models/{owner}/{name}/predictions` with just `{"input": {...}}`
+    ///
+    /// Every model in this client's catalog is a slug ("minimax/video-01-live",
+    /// "tencent/hunyuan-video", …), and they were all being sent as
+    /// `{"version": "<slug>"}` to `/v1/predictions` — which cannot succeed. It
+    /// is the signature of an integration written from docs and never run
+    /// against the live API.
+    ///
+    /// Pure and separated from the network call so it is unit-testable.
+    public static func submitRoute(model: String, input: [String: Any]) throws -> (url: URL, body: [String: Any]) {
+        let trimmed = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            throw ProviderError.invalidResponse("Replicate model id is empty")
+        }
+
+        // A version hash: 64 hex characters, no slash.
+        let isVersionHash = trimmed.count == 64
+            && !trimmed.contains("/")
+            && trimmed.allSatisfy { $0.isHexDigit }
+
+        if isVersionHash {
+            guard let url = URL(string: "https://api.replicate.com/v1/predictions") else {
+                throw ProviderError.invalidResponse("Invalid Replicate API URL")
+            }
+            return (url, ["version": trimmed, "input": input])
+        }
+
+        // Otherwise treat it as owner/name. Reject anything that isn't, rather
+        // than sending a malformed request and reporting the provider's opaque
+        // error back to the user.
+        let parts = trimmed.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
+        guard parts.count == 2, !parts[0].isEmpty, !parts[1].isEmpty else {
+            throw ProviderError.invalidResponse(
+                "Replicate model must be 'owner/name' or a 64-char version hash (got: \(trimmed))")
+        }
+        guard let owner = parts[0].addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+              let name = parts[1].addingPercentEncoding(withAllowedCharacters: .urlPathAllowed),
+              let url = URL(string: "https://api.replicate.com/v1/models/\(owner)/\(name)/predictions") else {
+            throw ProviderError.invalidResponse("Invalid Replicate model id: \(trimmed)")
+        }
+        return (url, ["input": input])
     }
 
     /// Pure parsing of a Replicate prediction response — separated from the

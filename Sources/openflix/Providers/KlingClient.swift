@@ -18,9 +18,22 @@ final class KlingClient: VideoProvider {
     ]
 
     private let session = makeSession()
+
+    /// `api.klingapi.com` is not Kling's documented host — the official
+    /// endpoints are on `api-singapore.klingai.com` (regional). Kling also
+    /// authenticates with a signed JWT derived from an access-key/secret pair,
+    /// NOT a bare bearer token, so this integration needs a live smoke test
+    /// before it can be trusted (see PROJECT_ASSESSMENT §5). Base URL is
+    /// overridable so the region can be selected without a release.
+    static let defaultBase = "https://api-singapore.klingai.com/v1"
     private static let base: URL = {
-        guard let url = URL(string: "https://api.klingapi.com/v1") else {
-            fatalError("Invalid static Kling API URL")
+        let raw = ProcessInfo.processInfo.environment["OPENFLIX_KLING_BASE_URL"] ?? defaultBase
+        guard let url = URL(string: raw) else {
+            guard let fallback = URL(string: defaultBase) else {
+                fatalError("Invalid static Kling API URL")
+            }
+            fputs("{\"warning\":\"Invalid OPENFLIX_KLING_BASE_URL, using default\",\"code\":\"invalid_base_url\"}\n", stderr)
+            return fallback
         }
         return url
     }()
