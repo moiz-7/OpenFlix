@@ -31,7 +31,7 @@ final class LumaClient: VideoProvider {
             "prompt": request.prompt,
             "model": request.model,
         ]
-        if let d = request.durationSeconds { body["duration"] = Int(d) }
+        if let d = request.durationInt() { body["duration"] = d }
         if let ar = request.aspectRatio { body["aspect_ratio"] = ar }
         if let ref = request.referenceImageURL {
             body["keyframes"] = [
