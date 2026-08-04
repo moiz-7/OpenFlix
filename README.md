@@ -1,6 +1,10 @@
-# OpenFlix
+# OpenFlix CLI
 
-The reproducible AI video workflow system.
+**The shipped OpenFlix product** — v1.0.1 on Homebrew, universal binary (Apple Silicon + Intel), macOS 14+.
+
+AI video generation for terminals and agents: 7 providers, reproducible recipes, enforced budgets, community-powered smart routing (`--route smart`), pairwise voting (`openflix vote`), and an MCP server so AI agents can drive it safely.
+
+> This repo is the CLI only. The OpenFlix macOS app (player + Studio) is a separate, not-yet-released product developed in a private monorepo that vendors this repo as a submodule.
 
 ## What is OpenFlix?
 
@@ -15,10 +19,15 @@ Recipes are forkable, benchmarkable, and shareable as `.openflix` files.
 
 ### 1. Install
 
-From source:
+Homebrew (recommended):
 ```bash
-cd VortexCLI && swift build
-cp .build/debug/openflix /usr/local/bin/
+brew tap moiz-7/openflix && brew install openflix
+```
+
+Or from source:
+```bash
+swift build -c release
+cp .build/release/openflix /usr/local/bin/
 ```
 
 ### 2. Set up API key
