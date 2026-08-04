@@ -25,10 +25,18 @@ struct PreferenceSummary: Codable {
         let wins: Int
         let losses: Int
         let winRate: Double
+        /// Registry anti-poisoning gate: false until enough distinct network
+        /// sources have voted for this model. nil on pre-hardening payloads,
+        /// whose rows the registry grandfathers as ranked.
+        let ranked: Bool?
         let categories: [String: CategoryStats]?
 
+        /// A single-source flood arrives with ranked == false — it must not
+        /// steer smart routing any more than it ranks on the leaderboard.
+        var isRanked: Bool { ranked ?? true }
+
         enum CodingKeys: String, CodingKey {
-            case model, provider, wins, losses, categories
+            case model, provider, wins, losses, ranked, categories
             case winRate = "win_rate"
         }
     }
@@ -98,7 +106,8 @@ enum PreferenceRouter {
     /// Pure selection: among candidates, pick the highest Laplace-smoothed
     /// win rate for `category`, falling back to the overall win rate when
     /// the category has fewer than `minCategoryEvents` events. Candidates
-    /// absent from the summary are skipped; returns nil when none match.
+    /// absent from the summary — or unranked (the registry's distinct-source
+    /// anti-poisoning gate) — are skipped; returns nil when none match.
     static func select(
         candidates: [(provider: String, model: String)],
         summary: PreferenceSummary,
@@ -108,7 +117,7 @@ enum PreferenceRouter {
         for candidate in candidates {
             guard let stats = summary.models.first(where: {
                 $0.provider == candidate.provider && $0.model == candidate.model
-            }) else { continue }
+            }), stats.isRanked else { continue }
 
             var rate = stats.winRate
             var categoryEvents = 0

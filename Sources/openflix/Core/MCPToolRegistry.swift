@@ -8,13 +8,15 @@ enum MCPToolRegistry {
     static let allTools: [MCPToolDefinition] = [
         MCPToolDefinition(
             name: "generate",
-            description: "Submit a video generation request, poll until complete, and download the result. Returns the full generation object.",
+            description: "Submit a video generation request, poll until complete, and download the result. Returns the full generation object. Either pass provider+model, or route=\"smart\" to auto-select by community preference win rate.",
             inputSchema: objectSchema(
-                required: ["prompt", "provider", "model"],
+                required: ["prompt"],
                 properties: [
                     "prompt": stringProp("Text prompt describing the video to generate"),
-                    "provider": stringProp("Provider ID (fal, replicate, runway, luma, kling, minimax)"),
-                    "model": stringProp("Model ID (provider-specific)"),
+                    "provider": stringProp("Provider ID (fal, replicate, runway, luma, kling, minimax). Required unless route=\"smart\""),
+                    "model": stringProp("Model ID (provider-specific). Required unless route=\"smart\""),
+                    "route": stringProp("Set to \"smart\" to auto-select provider+model from community preference data"),
+                    "category": stringProp("Category hint for smart routing (e.g. cinematic, anime, product)"),
                     "negative_prompt": stringProp("Negative prompt (what to avoid)"),
                     "width": intProp("Video width in pixels"),
                     "height": intProp("Video height in pixels"),
@@ -27,13 +29,15 @@ enum MCPToolRegistry {
         ),
         MCPToolDefinition(
             name: "generate_submit",
-            description: "Submit a video generation request without waiting. Returns generation ID for later polling.",
+            description: "Submit a video generation request without waiting. Returns generation ID for later polling. Either pass provider+model, or route=\"smart\" to auto-select by community preference win rate.",
             inputSchema: objectSchema(
-                required: ["prompt", "provider", "model"],
+                required: ["prompt"],
                 properties: [
                     "prompt": stringProp("Text prompt describing the video"),
-                    "provider": stringProp("Provider ID"),
-                    "model": stringProp("Model ID"),
+                    "provider": stringProp("Provider ID. Required unless route=\"smart\""),
+                    "model": stringProp("Model ID. Required unless route=\"smart\""),
+                    "route": stringProp("Set to \"smart\" to auto-select provider+model from community preference data"),
+                    "category": stringProp("Category hint for smart routing"),
                     "negative_prompt": stringProp("Negative prompt"),
                     "width": intProp("Video width in pixels"),
                     "height": intProp("Video height in pixels"),
@@ -116,13 +120,25 @@ enum MCPToolRegistry {
         ),
         MCPToolDefinition(
             name: "submit_feedback",
-            description: "Submit quality feedback (0-100 score) for a generation.",
+            description: "Submit quality feedback (0-100 score) for a generation. Local-only: feeds this machine's provider metrics, never leaves the machine.",
             inputSchema: objectSchema(
                 required: ["generation_id", "score"],
                 properties: [
                     "generation_id": stringProp("The generation ID"),
                     "score": numberProp("Quality score (0-100)"),
                     "reason": stringProp("Optional reason for the score"),
+                ]
+            )
+        ),
+        MCPToolDefinition(
+            name: "submit_vote",
+            description: "Record a pairwise preference vote (winner beat loser) and share it with the community registry — the same data smart routing reads back. Sends only provider/model names and a category; deduplicated server-side, safe to retry.",
+            inputSchema: objectSchema(
+                required: ["winner_generation_id", "loser_generation_id"],
+                properties: [
+                    "winner_generation_id": stringProp("Generation ID that was preferred"),
+                    "loser_generation_id": stringProp("Generation ID it beat (must be a different provider/model)"),
+                    "category": stringProp("Category hint (e.g. cinematic, anime, product)"),
                 ]
             )
         ),
