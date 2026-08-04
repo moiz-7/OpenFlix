@@ -115,6 +115,29 @@ enum RegistryClient {
         return data
     }
 
+    /// Share pairwise preference votes with the community registry.
+    /// Contract: POST /api/preferences {"events": [...]} → {"accepted": n,
+    /// "duplicates_ignored": m?}. Unauthenticated by design (defended
+    /// server-side by a model allowlist, event_id dedup, per-source quotas,
+    /// and a distinct-source ranking threshold — see docs/registry-api.md).
+    static func postPreferenceEvents(_ events: [[String: Any]]) async throws -> (accepted: Int, duplicatesIgnored: Int) {
+        guard let endpoint = URL(string: "\(baseURL)/api/preferences") else {
+            throw OpenFlixError.invalidResponse("Invalid registry URL: \(baseURL)/api/preferences")
+        }
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONSerialization.data(withJSONObject: ["events": events])
+
+        let session = makeSession()
+        let (responseData, _) = try await session.jsonData(for: request)
+        let json = try JSONSerialization.jsonObject(with: responseData) as? [String: Any] ?? [:]
+        guard let accepted = json["accepted"] as? Int else {
+            throw OpenFlixError.invalidResponse("Registry returned invalid response")
+        }
+        return (accepted: accepted, duplicatesIgnored: json["duplicates_ignored"] as? Int ?? 0)
+    }
+
     /// Publish a workflow spec to the registry.
     /// Contract: POST /api/workflows {"name", "description"?, "spec": {...}}
     /// → {"id", "url"} ("url" is additive; nil when the server omits it).

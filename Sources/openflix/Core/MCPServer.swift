@@ -188,6 +188,8 @@ actor MCPServer {
             return try await toolEvaluateQuality(arguments)
         case "submit_feedback":
             return try toolSubmitFeedback(arguments)
+        case "submit_vote":
+            return try await toolSubmitVote(arguments)
         case "get_metrics":
             return toolGetMetrics(arguments)
         case "budget_status":
@@ -203,10 +205,29 @@ actor MCPServer {
 
     // MARK: - Tool Implementations
 
+    /// Resolve provider/model for the generate tools: explicit pair, or
+    /// route == "smart" → PreferenceRouter (community win rates). Returns the
+    /// routing JSON for the response when smart routing decided.
+    private func resolveProviderModel(_ args: [String: AnyCodableValue]) async throws
+        -> (provider: String, model: String, routing: [String: Any]?) {
+        if let provider = optionalString(args, "provider"),
+           let model = optionalString(args, "model") {
+            return (provider, model, nil)
+        }
+        guard optionalString(args, "route") == "smart" else {
+            throw OpenFlixError.invalidResponse("provider and model are required unless route == \"smart\"")
+        }
+        let decision = try await PreferenceRouter.decide(
+            category: optionalString(args, "category"),
+            needsImageToVideo: false,
+            duration: optionalDouble(args, "duration_seconds")
+        )
+        return (decision.provider, decision.model, decision.json)
+    }
+
     private func toolGenerate(_ args: [String: AnyCodableValue]) async throws -> [String: Any] {
         let prompt = try requireString(args, "prompt")
-        let provider = try requireString(args, "provider")
-        let model = try requireString(args, "model")
+        let (provider, model, routing) = try await resolveProviderModel(args)
 
         let options = GenerationEngine.Options(
             pollInterval: 3,
@@ -228,13 +249,14 @@ actor MCPServer {
             height: optionalInt(args, "height"),
             options: options
         )
-        return gen.jsonRepresentation
+        var result = gen.jsonRepresentation
+        if let routing { result["routing"] = routing }
+        return result
     }
 
     private func toolGenerateSubmit(_ args: [String: AnyCodableValue]) async throws -> [String: Any] {
         let prompt = try requireString(args, "prompt")
-        let provider = try requireString(args, "provider")
-        let model = try requireString(args, "model")
+        let (provider, model, routing) = try await resolveProviderModel(args)
 
         let gen = try await GenerationEngine.submit(
             prompt: prompt,
@@ -246,7 +268,9 @@ actor MCPServer {
             width: optionalInt(args, "width"),
             height: optionalInt(args, "height")
         )
-        return gen.jsonRepresentation
+        var result = gen.jsonRepresentation
+        if let routing { result["routing"] = routing }
+        return result
     }
 
     private func toolGeneratePoll(_ args: [String: AnyCodableValue]) async throws -> [String: Any] {
@@ -430,6 +454,25 @@ actor MCPServer {
             "provider": gen.provider,
             "model": gen.model,
             "score": score,
+        ]
+    }
+
+    private func toolSubmitVote(_ args: [String: AnyCodableValue]) async throws -> [String: Any] {
+        let winnerId = try requireString(args, "winner_generation_id")
+        let loserId = try requireString(args, "loser_generation_id")
+
+        let result = try await PreferenceVoteClient.vote(
+            winnerId: winnerId, loserId: loserId,
+            category: optionalString(args, "category"),
+            context: "mcp"
+        )
+
+        return [
+            "status": "shared",
+            "winner_generation_id": winnerId,
+            "loser_generation_id": loserId,
+            "accepted": result.accepted,
+            "duplicates_ignored": result.duplicatesIgnored,
         ]
     }
 

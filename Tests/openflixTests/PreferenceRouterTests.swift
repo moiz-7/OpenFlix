@@ -63,6 +63,43 @@ final class PreferenceRouterTests: XCTestCase {
         XCTAssertEqual(summary.models[0].categories?["cinematic"]?.wins, 20)
     }
 
+    func testDecodesRankedFlagAndDefaultsTrueWhenAbsent() throws {
+        let json = """
+        {"models": [
+           {"model": "a", "provider": "p", "wins": 9, "losses": 1, "win_rate": 0.83, "ranked": false},
+           {"model": "b", "provider": "p", "wins": 3, "losses": 3, "win_rate": 0.5}
+         ],
+         "total_events": 16}
+        """
+        let summary = try JSONDecoder().decode(PreferenceSummary.self, from: Data(json.utf8))
+        XCTAssertFalse(summary.models[0].isRanked)
+        XCTAssertTrue(summary.models[1].isRanked, "Legacy payloads without `ranked` are grandfathered as ranked")
+    }
+
+    func testUnrankedModelsNeverWinSelection() throws {
+        // "a" has the flooded 83% win rate but failed the registry's
+        // distinct-source gate; "b" must win.
+        let json = """
+        {"models": [
+           {"model": "a", "provider": "p", "wins": 500, "losses": 1, "win_rate": 0.996, "ranked": false},
+           {"model": "b", "provider": "q", "wins": 6, "losses": 4, "win_rate": 0.583, "ranked": true}
+         ],
+         "total_events": 511}
+        """
+        let summary = try JSONDecoder().decode(PreferenceSummary.self, from: Data(json.utf8))
+        let choice = PreferenceRouter.select(
+            candidates: [("p", "a"), ("q", "b")],
+            summary: summary,
+            category: nil
+        )
+        XCTAssertEqual(choice?.provider, "q")
+        XCTAssertEqual(choice?.model, "b")
+
+        // When every candidate is unranked there is no trustworthy signal.
+        let none = PreferenceRouter.select(candidates: [("p", "a")], summary: summary, category: nil)
+        XCTAssertNil(none)
+    }
+
     // MARK: - Selection math
 
     func testPicksHighestOverallWinRateAmongAvailable() throws {

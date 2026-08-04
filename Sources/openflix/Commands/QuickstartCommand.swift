@@ -65,12 +65,12 @@ struct Quickstart: ParsableCommand {
         lines.append("3. Compare the two takes head to head:")
         lines.append("     openflix compare <gen-id-1> <gen-id-2>")
         lines.append("")
-        // Honesty: the CLI only READS aggregate preference data
-        // (GET /api/preferences/summary). It has no POST path, so a CLI vote
-        // is stored locally and improves only this machine's routing. Claiming
-        // it "feeds smarter routing for everyone" was simply untrue.
-        lines.append("4. Vote — tunes smart routing on this machine:")
-        lines.append("     openflix feedback <winning-gen-id> --score 90")
+        // `openflix vote` POSTs a pairwise event to the registry
+        // (/api/preferences), which is exactly the data --route smart reads
+        // back — so this claim is now literally true. (`openflix feedback`
+        // remains the private, local-only alternative.)
+        lines.append("4. Vote for the winner — your vote feeds smart routing for everyone:")
+        lines.append("     openflix vote <winning-gen-id> <losing-gen-id> --category cinematic")
         lines.append("")
         lines.append("5. Publish your recipe so others can run and fork it:")
         lines.append("     openflix recipe publish <recipe-id>")

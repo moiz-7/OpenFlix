@@ -751,6 +751,32 @@ else
     fail "feedback validates score range (got: $output)"
 fi
 
+# ── 76b. Flywheel: vote command exists ───────────────────
+echo "76b. Flywheel: vote command exists"
+if $BINARY vote --help 2>&1 | grep -q "pairwise preference vote"; then
+    pass "vote command exists"
+else
+    fail "vote command missing"
+fi
+
+# ── 76c. Flywheel: vote rejects unknown generations ──────
+echo "76c. Flywheel: vote rejects unknown generations"
+output=$($BINARY vote nonexistent-a nonexistent-b 2>&1 || true)
+if echo "$output" | grep -q "not_found"; then
+    pass "vote rejects unknown generations"
+else
+    fail "vote rejects unknown generations (got: $output)"
+fi
+
+# ── 76d. Flywheel: vote rejects self-votes ───────────────
+echo "76d. Flywheel: vote rejects self-votes"
+output=$($BINARY vote same-id same-id 2>&1 || true)
+if echo "$output" | grep -q "invalid_response\|different"; then
+    pass "vote rejects self-votes"
+else
+    fail "vote rejects self-votes (got: $output)"
+fi
+
 # ── 77. Round 5: VideoEvaluator protocol defined ────────
 echo "77. Round 5: VideoEvaluator protocol defined"
 if grep -q 'protocol VideoEvaluator' Sources/openflix/Core/EvaluatorProtocol.swift; then
@@ -1100,13 +1126,14 @@ else
     fail "MCPServer actor defined"
 fi
 
-# ── 117. Round 6: MCPToolRegistry has 14 tools ──────────
-echo "117. Round 6: MCPToolRegistry has 14 tools"
+# ── 117. Round 6: MCPToolRegistry has 15 tools ──────────
+# (14 from Round 6 + submit_vote from the flywheel wiring)
+echo "117. Round 6: MCPToolRegistry has 15 tools"
 tool_count=$(grep -c "MCPToolDefinition(" Sources/openflix/Core/MCPToolRegistry.swift)
-if [ "$tool_count" -eq 14 ]; then
-    pass "MCPToolRegistry has 14 tools"
+if [ "$tool_count" -eq 15 ]; then
+    pass "MCPToolRegistry has 15 tools"
 else
-    fail "MCPToolRegistry has 14 tools (got $tool_count)"
+    fail "MCPToolRegistry has 15 tools (got $tool_count)"
 fi
 
 # ── 118. Round 6: MCPToolRegistry has 3 resources ───────
