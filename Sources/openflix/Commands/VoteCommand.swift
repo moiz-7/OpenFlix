@@ -66,6 +66,13 @@ struct Vote: AsyncParsableCommand {
             Output.emitDict(json)
         } catch let error as OpenFlixError {
             Output.failMessage(error.localizedDescription, code: error.code)
+        } catch {
+            // URLError etc. from a down registry must stay machine-readable
+            // JSON, not ArgumentParser's plain-text "Error: …".
+            Output.failMessage(
+                "Could not reach the registry at \(RegistryClient.baseURL): \(error.localizedDescription)",
+                code: "registry_unavailable"
+            )
         }
     }
 }

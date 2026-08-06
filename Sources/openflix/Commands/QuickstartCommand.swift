@@ -32,13 +32,18 @@ struct Quickstart: ParsableCommand {
         lines.append("")
         lines.append("Provider keys (checked locally):")
         for p in allProviders.sorted() {
-            if configured.contains(p) {
+            if CLIKeychain.keylessProviders.contains(p) {
+                lines.append("  [ok] \(p)   (keyless — needs a running ComfyUI server + graph)")
+            } else if configured.contains(p) {
                 lines.append("  [ok] \(p)")
             } else {
                 lines.append("  [--] \(p)   (set with: openflix keys set \(p) <key>)")
             }
         }
-        if configured.isEmpty {
+        // `local` is always "configured" (keyless), which used to make this
+        // hint unreachable — the one machine that needs it never saw it.
+        let keyedConfigured = configured.filter { !CLIKeychain.keylessProviders.contains($0) }
+        if keyedConfigured.isEmpty {
             lines.append("")
             lines.append("  No keys configured yet — start with one provider:")
             lines.append("    openflix keys set fal <your-fal-key>")
@@ -55,7 +60,9 @@ struct Quickstart: ParsableCommand {
         lines.append("")
         lines.append("1. Generate a take from a recipe (repeatable, shareable settings):")
         if recipePath == nil {
-            lines.append("     openflix recipe init \"golden hour city skyline, slow dolly\" --name my-first-recipe")
+            // --provider/--model are optional flags, but a recipe without them
+            // cannot run — the bare init used to dead-end at step 1.
+            lines.append("     openflix recipe init \"golden hour city skyline, slow dolly\" --provider fal --model fal-ai/wan/v2.1/1080p --name my-first-recipe")
         }
         lines.append("     openflix recipe run \(recipeRef) --wait")
         lines.append("")
@@ -73,7 +80,8 @@ struct Quickstart: ParsableCommand {
         lines.append("     openflix vote <winning-gen-id> <losing-gen-id> --category cinematic")
         lines.append("")
         lines.append("5. Publish your recipe so others can run and fork it:")
-        lines.append("     openflix recipe publish <recipe-id>")
+        lines.append("     openflix recipe publish <recipe-id> --token <write-token>")
+        lines.append("   (Publishing needs the registry's write token; voting doesn't.)")
         lines.append("")
         lines.append("Before you spend money:")
         lines.append("  * Add --dry-run to any generate / recipe run to validate without submitting.")

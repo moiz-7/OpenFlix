@@ -35,16 +35,22 @@ cp .build/release/openflix /usr/local/bin/
 openflix keys set fal your-fal-key
 ```
 
-### 3. Run an example recipe
+### 3. Create and run your first recipe
 ```bash
-openflix recipe run recipes/cinematic-sunset.openflix --wait
+openflix recipe init "golden hour city skyline, slow dolly" \
+  --provider fal --model fal-ai/wan/v2.1/1080p --name my-first-recipe
+openflix recipe run <recipe-id> --wait
 ```
+(`recipe init` prints the new recipe's id. Prefer a ready-made starting point?
+Import one from the registry: `openflix recipe import --url <recipe-id>` — browse
+[registry.openflix.app](https://registry.openflix.app).)
 
-### 4. Create your own recipe
+### 4. Not sure where to start?
 ```bash
-openflix recipe init "neon city timelapse at night" \
-  --provider fal --model fal-ai/veo3 --name "Neon City"
+openflix quickstart
 ```
+Checks which provider keys you have configured and prints the canonical
+generate → compare → vote → publish loop as copy-pasteable commands.
 
 ### 5. Benchmark across models
 ```bash
@@ -122,6 +128,7 @@ openflix recipe import <file>     Import from .openflix file
 openflix recipe run <id>          Generate video from recipe
 openflix recipe benchmark <id>    Run across multiple providers
 openflix compare <id1> <id2>      Compare two generations
+openflix vote <winner> <loser>    Record a pairwise preference vote (fuels --route smart)
 ```
 
 ### Generate (direct)
@@ -135,12 +142,14 @@ openflix evaluate <id>            Evaluate video quality
 
 ### Infrastructure
 ```
+openflix quickstart                 Guided onboarding: keys check + canonical workflow
 openflix keys set <provider> <key>  Store API key
 openflix providers                  List providers
 openflix models --provider <id>     List models
 openflix health                     Check provider status
 openflix cost                       Show cost breakdown
 openflix budget                     Manage spending limits
+openflix mcp                        Run as an MCP server for AI agents (see docs/mcp-quickstart.md)
 ```
 
 ## Providers
@@ -163,7 +172,10 @@ placeholders, and save it to `~/.openflix/comfyui-graph.json`.
 
 ## Example Recipes
 
-See [`recipes/`](recipes/) for ready-to-run examples:
+The [`recipes/`](recipes/) directory in this repo has 50 ready-to-run example
+bundles (a git clone only — a Homebrew install ships just the binary; import
+examples from [registry.openflix.app](https://registry.openflix.app) instead
+with `openflix recipe import --url <recipe-id>`). Highlights:
 - `cinematic-sunset.openflix` -- Drone sunset shot
 - `anime-fight.openflix` -- Anime sword fight
 - `product-reveal.openflix` -- Product showcase
@@ -193,10 +205,8 @@ See [benchmarks/](benchmarks/) for published benchmark results.
 
 ## Workflows
 
-- [Canonical Workflows](docs/workflows.md) -- Create, benchmark, fork, share
-- [Recipe Format](docs/recipe-format.md) -- .openflix specification
-- [Publishing Guide](docs/publishing.md) -- How to publish recipes and benchmarks
-- [Registry API](docs/registry-api.md) -- API reference
+- [Workflow Engine](docs/workflows-engine.md) -- Multi-stage pipelines: `openflix workflow run`, journaling, `--resume`, hooks
+- [MCP Quickstart](docs/mcp-quickstart.md) -- Wire OpenFlix into Claude Code or any MCP-capable agent
 
 ## Architecture
 
@@ -216,9 +226,8 @@ See [benchmarks/](benchmarks/) for published benchmark results.
 
 ## Documentation
 
-- [Recipe Format Specification](docs/recipe-format.md)
-- [Publishing Guide](docs/publishing.md)
-- [Registry API Reference](docs/registry-api.md)
+- [Workflow Engine](docs/workflows-engine.md)
+- [MCP Quickstart](docs/mcp-quickstart.md) -- agent setup, all 15 tools, smart routing, voting
 
 ## Requirements
 

@@ -238,7 +238,13 @@ enum PreferenceRouter {
             : "no configured provider/model appears in preference data"
         warn("Smart routing fell back to default (cheapest) routing: \(reason).", code: "smart_routing_fallback")
 
-        let best = candidates.sorted {
+        // The keyless `local` provider is always "available", and at $0/s it
+        // wins every cheapest sort — which routed fresh installs to the
+        // shipped ComfyUI placeholder graph that cannot run. Prefer keyed
+        // providers; local only when it is genuinely all the user has.
+        let keyed = candidates.filter { $0.providerId != "local" }
+        let pool = keyed.isEmpty ? candidates : keyed
+        let best = pool.sorted {
             ($0.costPerSecondUSD ?? .infinity) < ($1.costPerSecondUSD ?? .infinity)
         }[0]
         var json: [String: Any] = [
