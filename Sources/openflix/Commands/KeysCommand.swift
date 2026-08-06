@@ -34,6 +34,17 @@ struct KeysSet: AsyncParsableCommand {
     var key: String
 
     mutating func run() async throws {
+        // A typo'd provider ("fall") used to store a key nothing would ever
+        // read, while reporting {"stored": true}.
+        let known = ProviderRegistry.shared.all
+            .map(\.providerId)
+            .filter { !CLIKeychain.keylessProviders.contains($0) }
+        guard known.contains(provider) else {
+            Output.failMessage(
+                "Unknown provider '\(provider)'. Valid: \(known.sorted().joined(separator: ", "))",
+                code: "provider_not_found"
+            )
+        }
         let status = CLIKeychain.setKey(key, provider: provider)
         guard status == errSecSuccess else {
             Output.failMessage("Failed to store key in Keychain: \(keychainError(status))", code: "keychain_error")

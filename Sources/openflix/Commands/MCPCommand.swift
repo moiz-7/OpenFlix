@@ -19,11 +19,14 @@ struct MCP: AsyncParsableCommand {
             }
           }
 
-        EXPOSED TOOLS (14):
+        EXPOSED TOOLS (15):
           generate, generate_submit, generate_poll, list_generations,
           get_generation, cancel_generation, retry_generation, list_providers,
-          evaluate_quality, submit_feedback, get_metrics, budget_status,
-          project_run, health_check
+          evaluate_quality, submit_feedback, submit_vote, get_metrics,
+          budget_status, project_run, health_check
+
+        generate/generate_submit accept route:"smart" (+ optional category)
+        instead of provider+model to auto-select by community win rate.
 
         EXPOSED RESOURCES (3):
           openflix://providers, openflix://metrics, openflix://budget
