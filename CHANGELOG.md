@@ -2,6 +2,36 @@
 
 All notable changes to the `openflix` CLI. Format loosely follows [Keep a Changelog](https://keepachangelog.com); versions are git tags (`v*`), which the release workflow verifies against the binary's reported version.
 
+## [1.0.2] — 2026-08-06
+
+The demo-readiness release. Nothing here changes the API surface; all of it is
+"the first five minutes on a stranger's Mac now tell the truth".
+
+### Fixed
+- **Smart-routing fallback no longer picks the unrunnable placeholder.** On a
+  machine with provider keys but no preference data, `--route smart` fell
+  through to the cheapest option — which is the $0 local ComfyUI entry, and
+  ComfyUI is not installed on a fresh Mac. It now prefers a provider you
+  actually hold a key for, and only lands on `local/comfyui` when that is
+  genuinely all there is.
+- **`openflix quickstart`'s first command now runs.** The printed `recipe init`
+  invocation was missing the required provider/model, so the very first thing a
+  new user pasted failed. The keyless-machine hint appears when there are no
+  keys, and the publish step says a write token is needed instead of failing
+  with a bare 401.
+- **`openflix vote` returns machine-readable JSON when the registry is
+  unreachable**, so an agent driving the CLI sees a structured error instead of
+  prose on stderr.
+- **`openflix keys set` rejects unknown providers.** It used to accept any
+  string and store a key nothing would ever read, which surfaced later as an
+  inexplicable "no API key" during generation.
+
+### Docs
+- New `docs/mcp-quickstart.md`: the real `claude mcp add` command, all 15 tools,
+  and `submit_vote` + `route:"smart"` shown as first-class.
+- README first-run path corrected; dead links removed; `quickstart`, `vote` and
+  `mcp` documented.
+
 ## [1.0.1] — 2026-08-03
 
 ### Added
