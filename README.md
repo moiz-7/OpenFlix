@@ -1,6 +1,6 @@
 # OpenFlix CLI
 
-**The shipped OpenFlix product** — v1.0.1 on Homebrew, universal binary (Apple Silicon + Intel), macOS 14+.
+**The shipped OpenFlix product** — v1.0.2 on Homebrew, universal binary (Apple Silicon + Intel), macOS 14+.
 
 AI video generation for terminals and agents: 7 providers, reproducible recipes, enforced budgets, community-powered smart routing (`--route smart`), pairwise voting (`openflix vote`), and an MCP server so AI agents can drive it safely.
 
