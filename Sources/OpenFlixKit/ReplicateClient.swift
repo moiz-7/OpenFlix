@@ -14,9 +14,21 @@ public final class ReplicateClient: VideoProvider {
         .priced(providerId: "replicate", providerName: "Replicate",
             modelId: "wavespeed-ai/wan-2.1", displayName: "Wan 2.1",
             defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 5, supportsImageToVideo: false),
+        // `supportsImageToVideo` was `true`, and this client **never sends an
+        // image** — every other provider that claims the capability populates a
+        // field for it (`image`, `keyframes`, `first_frame_image`,
+        // `promptImage`); this one has none. So a user who attached a reference
+        // image had it silently discarded and was billed for a text-to-video
+        // generation that ignored their input.
+        //
+        // Turned off rather than implemented: Replicate's `input` schema is
+        // per-model, so the start-frame key differs by model and there is
+        // nothing here or in the app to derive it from. Advertising a capability
+        // we cannot deliver is the worse of the two errors. (The model id is
+        // separately suspect — Replicate's publisher is `kwaivgi`, not `kwaai`.)
         .priced(providerId: "replicate", providerName: "Replicate",
             modelId: "kwaai/kling-v1.6-pro", displayName: "Kling v1.6 Pro",
-            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 10, supportsImageToVideo: true),
+            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 10, supportsImageToVideo: false),
     ]
 
     private let session = makeSession()

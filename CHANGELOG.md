@@ -57,6 +57,11 @@ anyone's hands, alongside everything new here.
 - **`--timeout` could abort the process after a generation was already billed.**
   `Int(Double)` traps on a non-finite value, and this one ran on the timeout
   path — losing the record of something the user had paid for.
+- **Replicate advertised image-to-video and never sent an image.** A user who
+  attached a reference image had it silently discarded and was billed for a
+  text-to-video generation that ignored their input. The flag is now honest;
+  implementing it needs Replicate's per-model `input` schema, which differs by
+  model. Every other provider that claims the capability does send the image.
 - Scatter/gather no longer nominates targets for an impossible shot length;
   ComfyUI graph rendering no longer traps on a non-finite duration.
 
