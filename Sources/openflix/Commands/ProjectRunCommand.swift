@@ -60,26 +60,25 @@ struct ProjectRun: AsyncParsableCommand {
             )
         }
 
-        // Resume: reset stale shots
+        // Resume: reset stale shots.
+        //
+        // This was a hand-rolled copy of `DAGExecutor.resetStaleShots` that had
+        // drifted from it, and the drift silently ate work. It reset
+        // `.dispatched`, `.processing` and `.failed` — but **not** `.evaluating`,
+        // and **not** the `.skipped` shots the executor's drain marks with
+        // `blockedByUpstreamMessage` when their upstream fails.
+        //
+        // So the common case behaved like this: shot 3 of 7 fails, the drain
+        // skips 4–7, `--resume` retries shot 3 alone, and the run reports
+        // **success** with four shots that were never made. The user is told the
+        // project is done; it isn't.
+        //
+        // One implementation, at the choke point. `project_run` (MCP) already
+        // called `resetStaleShots`, so the two entry points also disagreed with
+        // each other — an agent's resume repaired more than a human's.
         if resume {
-            ProjectStore.shared.update(id: projectId) { p in
-                for si in p.scenes.indices {
-                    for shi in p.scenes[si].shots.indices {
-                        let status = p.scenes[si].shots[shi].status
-                        if status == .dispatched || status == .processing {
-                            p.scenes[si].shots[shi].status = .pending
-                            p.scenes[si].shots[shi].startedAt = nil
-                            p.scenes[si].shots[shi].errorMessage = nil
-                        }
-                        // Also reset failed shots on resume
-                        if status == .failed {
-                            p.scenes[si].shots[shi].status = .pending
-                            p.scenes[si].shots[shi].errorMessage = nil
-                            p.scenes[si].shots[shi].retryCount = 0
-                        }
-                    }
-                }
-            }
+            let reset = DAGExecutor.resetStaleShots(projectId: projectId)
+            CLILog.info("project.resume", ["project_id": projectId, "shots_reset": reset])
         }
 
         let maxConc = concurrency ?? project.settings.maxConcurrency

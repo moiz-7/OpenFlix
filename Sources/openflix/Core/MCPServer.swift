@@ -1,6 +1,53 @@
 import Foundation
 import OpenFlixKit
 
+/// Serialises every write to stdout.
+///
+/// The response loop is serial, but a running `project_run` emits
+/// `notifications/progress` from concurrently executing shots. Two `print`s
+/// interleaving would produce a line that is not a JSON-RPC message, which on
+/// this transport is unrecoverable — the framing *is* the newline.
+private let mcpStdoutLock = NSLock()
+
+/// A tool that understood the call perfectly and declined to act.
+///
+/// This is deliberately **not** a JSON-RPC `error`. That layer is for protocol
+/// failures — a malformed request, an unknown method — and a client is entitled
+/// to treat one as a transport problem. "I will not spend your money without a
+/// cost ceiling" is a result the model must read and act on, which is exactly
+/// what `isError: true` inside a tool result is for. The body is a JSON object
+/// carrying the numbers needed to build the corrected call.
+struct MCPToolRefusal: Error {
+    let code: String
+    let message: String
+    let details: [String: Any]
+
+    var payload: [String: Any] {
+        var d = details
+        d["error"] = code
+        d["message"] = message
+        return d
+    }
+}
+
+/// Set by a watchdog task, read by the task that started it.
+final class MCPTimeoutFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = false
+    func set() { lock.lock(); value = true; lock.unlock() }
+    var isSet: Bool { lock.lock(); defer { lock.unlock() }; return value }
+}
+
+/// Seconds → nanoseconds without a trapping conversion.
+///
+/// `UInt64(someDouble)` aborts the process on a non-finite or out-of-range
+/// value, and this one comes from a tool argument. The caller clamps first;
+/// this is the belt to that pair of braces.
+func nanoseconds(_ seconds: Double) -> UInt64 {
+    guard seconds.isFinite, seconds > 0 else { return 0 }
+    return UInt64(Swift.min(seconds, 86_400) * 1_000_000_000)
+}
+
 /// MCP server that communicates over stdio (stdin/stdout) using JSON-RPC 2.0.
 ///
 /// **Dual-era (C0-2).** MCP `2026-07-28` deleted the session: no
@@ -198,6 +245,8 @@ actor MCPServer {
         "OpenFlix CLI: generate video from text through the user's own BYOK provider accounts. "
         + "The generate, generate_submit and retry_generation tools SPEND THE USER'S REAL MONEY and cannot be undone — "
         + "call budget_status first and confirm with the user before using them. "
+        + "project_run spends money once per shot across a whole graph: called with only a project_id it spends nothing "
+        + "and returns a cost plan; executing needs confirm=true and an explicit max_cost_usd ceiling. "
         + "Everything else here reads local state. Saved .openflix recipes are exposed as prompts; "
         + "rendering one produces prompt text and never submits anything."
 
@@ -222,8 +271,15 @@ actor MCPServer {
             arguments = [:]
         }
 
+        // Progress is opt-in: a client that wants it puts a token in the
+        // request's `_meta`, and we send `notifications/progress` against that
+        // token. No token means no notifications, which is why adding this
+        // changes nothing for every client that exists today.
+        let progressToken = params["_meta"]?["progressToken"]
+
         do {
-            let result = try await dispatchTool(name: toolName, arguments: arguments)
+            let result = try await dispatchTool(name: toolName, arguments: arguments,
+                                                progressToken: progressToken)
             return complete(id: request.id, .dictionary([
                 "content": .array([
                     .dictionary([
@@ -234,6 +290,21 @@ actor MCPServer {
                 // The typed half of the same answer (2025-06-18+). The text block
                 // stays for clients that never learned to read this one.
                 "structuredContent": AnyCodableValue.sanitized(result),
+            ]))
+        } catch let refusal as MCPToolRefusal {
+            // In-band, like every other tool failure here, and deliberately
+            // without `structuredContent`: the spec only guarantees a
+            // structured result conforms to `outputSchema` on success, and a
+            // strict client should not have to validate a refusal against it.
+            // The text block is JSON, so nothing is lost.
+            return complete(id: request.id, .dictionary([
+                "content": .array([
+                    .dictionary([
+                        "type": .string("text"),
+                        "text": .string(jsonString(refusal.payload)),
+                    ])
+                ]),
+                "isError": .bool(true),
             ]))
         } catch let error as OpenFlixError {
             let structured = StructuredError.from(error)
@@ -325,7 +396,8 @@ actor MCPServer {
 
     // MARK: - Tool dispatch
 
-    private func dispatchTool(name: String, arguments: [String: AnyCodableValue]) async throws -> [String: Any] {
+    private func dispatchTool(name: String, arguments: [String: AnyCodableValue],
+                              progressToken: AnyCodableValue? = nil) async throws -> [String: Any] {
         switch name {
         case "generate":
             return try await toolGenerate(arguments)
@@ -354,7 +426,7 @@ actor MCPServer {
         case "budget_status":
             return await toolBudgetStatus()
         case "project_run":
-            return try await toolProjectRun(arguments)
+            return try await toolProjectRun(arguments, progressToken: progressToken)
         case "health_check":
             return try await toolHealthCheck()
         default:
@@ -663,16 +735,369 @@ actor MCPServer {
         return await BudgetManager.shared.statusSummary()
     }
 
-    private func toolProjectRun(_ args: [String: AnyCodableValue]) async throws -> [String: Any] {
+    // MARK: - project_run
+    //
+    // The most consequential tool on either server: it spends real money, per
+    // shot, across a whole graph, on the user's own provider credit.
+    //
+    // Three properties hold it together, and none of them is optional:
+    //
+    //  1. **It cannot spend by accident.** `confirm: true` AND a numeric
+    //     `max_cost_usd` are both required. A call with only `project_id`
+    //     returns a plan and submits nothing, so the cheapest thing an agent
+    //     can do is find out the price.
+    //  2. **The ceiling is enforced twice.** Up front against the plan's
+    //     estimate, and again inside `DAGExecutor` as a per-shot budget gate —
+    //     because an estimate is a guess and the provider's invoice is not.
+    //     It can only ever narrow: `BudgetManager`'s daily/monthly/
+    //     per-generation limits and the project's own `costBudgetUSD` still
+    //     apply underneath.
+    //  3. **Nothing here reaches a provider.** Execution is `DAGExecutor`,
+    //     which reaches `GenerationEngine.submit`, which is where the budget
+    //     pre-flight, the prompt-safety check, the reference-image rule and
+    //     the pre/post-generate hooks live. There is no second path.
+
+    /// Default wall-clock ceiling on one `tools/call`. A DAG of long shots can
+    /// otherwise outlive any client's patience: 20 shots × a 600 s per-shot
+    /// timeout is over three hours of silence on a request/response pipe.
+    static let projectRunDefaultTimeout: Double = 900
+    static let projectRunMaxTimeout: Double = 3600
+
+    /// `notifications/progress`. Spelled here rather than in `MCPMethod`
+    /// because that enum belongs to the protocol workstream; fold it in there
+    /// when the two files are next touched together.
+    static let progressNotification = "notifications/progress"
+
+    private func toolProjectRun(_ args: [String: AnyCodableValue],
+                                progressToken: AnyCodableValue?) async throws -> [String: Any] {
         let projectId = try requireIdentifier(args, "project_id")
         guard let project = ProjectStore.shared.get(projectId) else {
             throw OpenFlixError.generationNotFound("Project '\(projectId)' not found")
         }
-        return [
+
+        let resume = optionalBool(args, "resume") ?? false
+        let confirm = optionalBool(args, "confirm") ?? false
+        let plan = ProjectRunPlanner.plan(project: project, resume: resume)
+        let budget = await BudgetManager.shared.statusSummary()
+
+        var base: [String: Any] = [
             "project_id": projectId,
             "name": project.name,
-            "status": "use 'openflix project run \(projectId)' for full execution",
+            "project_status": project.status.rawValue,
+            "resume": resume,
         ]
+        base.merge(plan.jsonRepresentation) { a, _ in a }
+        base["budget"] = budget
+
+        // A graph that cannot be ordered is refused in both modes: planning a
+        // cyclic project would quote a price for something that can never run.
+        if let graphError = plan.graphError {
+            throw MCPToolRefusal(code: "invalid_graph", message: graphError, details: base)
+        }
+
+        // ---- Plan mode. Spends nothing, submits nothing, writes nothing. ----
+        if !confirm {
+            var out = base
+            out["executed"] = false
+            out["mode"] = "plan"
+            out["next_step"] = planNextStep(plan: plan, project: project, resume: resume, budget: budget)
+            return out
+        }
+
+        // ---- Everything below this line is a request to spend. ----
+
+        // Same gate as `openflix project run`, for the same reason: a project
+        // already `.running` may have a live executor in another process, and
+        // two executors on one DAG is a double bill.
+        let runnable: Set<Project.ProjectStatus> = [.draft, .paused, .partialFailure, .failed]
+        guard runnable.contains(project.status) else {
+            throw MCPToolRefusal(
+                code: "project_not_runnable",
+                message: "Project '\(projectId)' has status '\(project.status.rawValue)' — only draft, paused, partially failed or failed projects can be run. A project left 'running' by a crashed run must be reset before it can be re-run.",
+                details: base)
+        }
+
+        guard plan.wouldSpend else {
+            throw MCPToolRefusal(
+                code: "nothing_to_run",
+                message: plan.blockedShots.isEmpty
+                    ? "Nothing to run: every shot in '\(project.name)' is already in a terminal state. Pass resume: true to retry the ones that failed."
+                    : "Nothing to run: all \(plan.blockedShots.count) candidate shot(s) would be refused locally before any provider call. See shots[].blocked_reason.",
+                details: base)
+        }
+
+        // The ceiling. Required, finite and positive — an agent that cannot
+        // name a number it is willing to spend has not decided to spend.
+        guard let ceiling = optionalDouble(args, "max_cost_usd"), ceiling.isFinite, ceiling > 0 else {
+            throw MCPToolRefusal(
+                code: "cost_ceiling_required",
+                message: "Refusing to run: max_cost_usd is required (a finite, positive number of US dollars) whenever confirm is true. This plan estimates \(usd(plan.totalEstimatedCostUSD)) across \(plan.runnableShots.count) shot(s). Show the user the plan, then call project_run again with confirm: true and max_cost_usd set to a ceiling they accept.",
+                details: base)
+        }
+        guard plan.totalEstimatedCostUSD <= ceiling else {
+            var details = base
+            details["cost_ceiling_usd"] = round4(ceiling)
+            throw MCPToolRefusal(
+                code: "cost_ceiling_too_low",
+                message: "Refusing to run: the plan estimates \(usd(plan.totalEstimatedCostUSD)), above the \(usd(ceiling)) ceiling you set. Nothing was submitted. Either raise max_cost_usd, or reduce the project (fewer shots, shorter durations, a cheaper provider) and plan again.",
+                details: details)
+        }
+
+        // ---- Committed. From here money can be spent. ----
+
+        if resume { DAGExecutor.resetStaleShots(projectId: projectId) }
+
+        var qualityConfig = project.settings.qualityConfig
+        let threshold = optionalDouble(args, "quality_threshold")
+        if optionalBool(args, "evaluate") == true || threshold != nil { qualityConfig.enabled = true }
+        if let threshold, threshold.isFinite { qualityConfig.threshold = threshold }
+
+        let deadline = clampedRunTimeout(args)
+        let journal = RunJournal()
+        let runId = UUID().uuidString
+        var initialNodes: [String: NodeRecord] = [:]
+        if let current = ProjectStore.shared.get(projectId) {
+            for shot in current.allShots {
+                initialNodes[shot.name] = NodeRecord(
+                    nodeId: shot.name,
+                    inputsHash: RunJournal.inputsHash(for: shot),
+                    status: shot.status == .succeeded ? "succeeded" : "pending",
+                    generationId: shot.selectedGenerationId,
+                    outputPath: nil, costUSD: shot.actualCostUSD,
+                    startedAt: shot.startedAt, completedAt: shot.completedAt)
+            }
+        }
+        _ = journal.create(runId: runId, kind: "project", name: project.name,
+                           projectId: projectId, nodes: initialNodes)
+
+        // A shot may not outlive the call it was started by. Without this, one
+        // shot with the default 600 s poll timeout can burn the whole deadline.
+        let perShotBase = project.settings.timeoutPerShot
+        let perShotTimeout = (perShotBase.isFinite && perShotBase > 0)
+            ? Swift.min(perShotBase, deadline) : deadline
+
+        let timedOutFlag = MCPTimeoutFlag()
+        let executor = DAGExecutor(
+            projectId: projectId,
+            maxConcurrency: optionalInt(args, "concurrency") ?? project.settings.maxConcurrency,
+            stream: false,
+            apiKey: nil,
+            skipDownload: false,
+            timeout: perShotTimeout,
+            maxRetriesPerShot: project.settings.maxRetriesPerShot,
+            qualityConfig: qualityConfig,
+            journal: journal,
+            runId: runId,
+            costCeilingUSD: ceiling,
+            onProgress: Self.progressReporter(token: progressToken))
+
+        Self.sendProgress(token: progressToken, completed: 0, total: plan.runnableShots.count,
+                          message: "Starting '\(project.name)': \(plan.runnableShots.count) shot(s), "
+                                 + "estimated \(usd(plan.totalEstimatedCostUSD)), ceiling \(usd(ceiling)). "
+                                 + "Run journal \(runId).")
+
+        // Wall-clock bound. `pause()` rather than `cancel()` on purpose: a
+        // paused project is resumable and a cancelled one is not (the status
+        // gate above refuses `.cancelled`), so timing out must never be the
+        // thing that strands a half-finished run.
+        let watchdog = Task { [deadline] in
+            try? await Task.sleep(nanoseconds: nanoseconds(deadline))
+            guard !Task.isCancelled else { return }
+            timedOutFlag.set()
+            await executor.pause()
+        }
+
+        let finished: Project
+        do {
+            finished = try await executor.execute()
+            watchdog.cancel()
+        } catch {
+            watchdog.cancel()
+            var details = base
+            details["run_id"] = runId
+            details["cost_ceiling_usd"] = round4(ceiling)
+            throw MCPToolRefusal(
+                code: "run_failed",
+                message: (error as? OpenFlixError)?.errorDescription ?? error.localizedDescription,
+                details: details)
+        }
+
+        return executionResult(project: finished, plan: plan, runId: runId,
+                               ceiling: ceiling, timedOut: timedOutFlag.isSet,
+                               budget: await BudgetManager.shared.statusSummary())
+    }
+
+    // MARK: project_run helpers
+
+    private func executionResult(project: Project, plan: ProjectRunPlan, runId: String,
+                                 ceiling: Double, timedOut: Bool,
+                                 budget: [String: Any]) -> [String: Any] {
+        let shots = project.allShots
+        let succeeded = shots.filter { $0.status == .succeeded }
+        let failed = shots.filter { $0.status == .failed }
+        let skipped = shots.filter { $0.status == .skipped }
+        let pending = shots.filter { !DAGExecutor.isTerminal($0.status) }
+        let actual = shots.compactMap { $0.actualCostUSD }.reduce(0, +)
+
+        var out: [String: Any] = [
+            "executed": true,
+            "mode": "execute",
+            "project_id": project.id,
+            "name": project.name,
+            "status": project.status.rawValue,
+            "run_id": runId,
+            "run_journal_path": "~/.openflix/runs/\(runId).json",
+            "timed_out": timedOut,
+            "waves": plan.waveCount,
+            "shots_total": shots.count,
+            "shots_succeeded": succeeded.count,
+            "shots_failed": failed.count,
+            "shots_skipped": skipped.count,
+            "shots_pending": pending.count,
+            "estimated_cost_usd": round4(plan.totalEstimatedCostUSD),
+            "estimated_cost_is_upper_bound": true,
+            "actual_cost_usd": round4(actual),
+            "cost_ceiling_usd": round4(ceiling),
+            "budget": budget,
+            // Every shot, not just the failures: "what ran, what did not, what
+            // it cost" has to be answerable from one result.
+            "shots": shots.map { shot -> [String: Any] in
+                var d: [String: Any] = ["shot_id": shot.id, "name": shot.name,
+                                        "status": shot.status.rawValue]
+                if let v = shot.provider            { d["provider"] = v }
+                if let v = shot.model               { d["model"] = v }
+                if let v = shot.selectedGenerationId {
+                    d["generation_id"] = v
+                    d["resource_uri"] = "openflix://generation/\(v)"
+                }
+                if let v = shot.actualCostUSD       { d["actual_cost_usd"] = round4(v) }
+                if let v = shot.qualityScore        { d["quality_score"] = round4(v) }
+                if let v = shot.errorMessage        { d["error"] = v }
+                return d
+            },
+        ]
+        out["next_step"] = runNextStep(project: project, failed: failed.count,
+                                       skipped: skipped.count, pending: pending.count,
+                                       timedOut: timedOut, ceiling: ceiling,
+                                       spent: actual)
+        return out
+    }
+
+    private func planNextStep(plan: ProjectRunPlan, project: Project,
+                              resume: Bool, budget: [String: Any]) -> String {
+        if !plan.wouldSpend {
+            if plan.blockedShots.isEmpty {
+                return "Nothing would run — every shot is already terminal. Pass resume: true to retry the ones that failed."
+            }
+            return "Nothing would run — all \(plan.blockedShots.count) candidate shot(s) would be refused locally. Fix the reasons in shots[].blocked_reason first; none of them costs anything."
+        }
+        var lines = [
+            "NOTHING HAS BEEN SPENT. This is an estimate of what running '\(project.name)' would cost: "
+            + "\(usd(plan.totalEstimatedCostUSD)) across \(plan.runnableShots.count) shot(s) in \(plan.waveCount) wave(s).",
+        ]
+        if !plan.blockedShots.isEmpty {
+            lines.append("\(plan.blockedShots.count) further shot(s) would be refused locally before any provider call — see shots[].blocked_reason.")
+        }
+        if let remaining = budget["daily_remaining_usd"] as? Double,
+           plan.totalEstimatedCostUSD > remaining {
+            lines.append("WARNING: the estimate exceeds today's remaining budget (\(usd(remaining))). The per-generation budget gate will refuse shots partway through the run.")
+        }
+        let suggested = suggestedCeiling(plan.totalEstimatedCostUSD)
+        lines.append("Show this to the user. If they agree, call project_run again with "
+                     + "{\"project_id\": \"\(project.id)\", \"confirm\": true, \"max_cost_usd\": \(suggested)"
+                     + (resume ? ", \"resume\": true" : "") + "}.")
+        return lines.joined(separator: " ")
+    }
+
+    private func runNextStep(project: Project, failed: Int, skipped: Int, pending: Int,
+                             timedOut: Bool, ceiling: Double, spent: Double) -> String {
+        let resumeCall = "call project_run again with {\"project_id\": \"\(project.id)\", \"resume\": true, "
+            + "\"confirm\": true, \"max_cost_usd\": <a new ceiling>} — resume retries the failed shots and the ones "
+            + "that were blocked behind them. Already-succeeded shots are not re-billed."
+        if timedOut {
+            return "The run hit its timeout and was PAUSED after spending \(usd(spent)); \(pending) shot(s) never started. "
+                + "Any shot already submitted to a provider is still billed and will finish there. To continue, \(resumeCall)"
+        }
+        if failed == 0 && skipped == 0 && pending == 0 {
+            return "All shots succeeded. Spent \(usd(spent)) of the \(usd(ceiling)) ceiling. "
+                + "Each shot's video is at shots[].generation_id — read openflix://generation/<id> for the file path."
+        }
+        var lines = ["\(failed) shot(s) failed"]
+        if skipped > 0 { lines.append("\(skipped) were skipped because an upstream shot failed") }
+        if pending > 0 { lines.append("\(pending) never ran") }
+        return lines.joined(separator: ", ")
+            + ". Spent \(usd(spent)). Read shots[].error for the reason on each failure — if it is a budget refusal, "
+            + "raise the ceiling or the daily budget; if it is a provider error, fix the shot. Then \(resumeCall)"
+    }
+
+    /// A ceiling a little above the estimate, so a provider billing slightly
+    /// more than the table says does not halt the run at shot 6 of 7.
+    private func suggestedCeiling(_ estimate: Double) -> Double {
+        guard estimate.isFinite, estimate > 0 else { return 1 }
+        return ((estimate * 1.2) * 100).rounded(.up) / 100
+    }
+
+    func clampedRunTimeout(_ args: [String: AnyCodableValue]) -> Double {
+        guard let requested = optionalDouble(args, "timeout_seconds"), requested.isFinite,
+              requested > 0 else { return Self.projectRunDefaultTimeout }
+        return Swift.min(requested, Self.projectRunMaxTimeout)
+    }
+
+    private func round4(_ v: Double) -> Double {
+        guard v.isFinite else { return 0 }
+        return (v * 10000).rounded() / 10000
+    }
+
+    private func usd(_ v: Double) -> String {
+        guard v.isFinite else { return "$0.00" }
+        return String(format: "$%.2f", v)
+    }
+
+    /// The `DAGProgress` sink, or nil when the client did not ask for progress.
+    static func progressReporter(token: AnyCodableValue?)
+        -> (@Sendable (DAGProgress) -> Void)? {
+        guard let token else { return nil }
+        return { p in
+            var message = "\(p.shotName): \(p.status)"
+            if let error = p.errorMessage, !error.isEmpty { message += " — \(error)" }
+            message += String(format: " · %d/%d shots · $%.2f billed so far",
+                              p.completed, p.total, p.costSoFarUSD.isFinite ? p.costSoFarUSD : 0)
+            sendProgress(token: token, completed: p.completed, total: p.total, message: message)
+        }
+    }
+
+    nonisolated static func sendProgress(token: AnyCodableValue?, completed: Int,
+                                         total: Int, message: String) {
+        guard let token else { return }
+        writeNotification(progressNotification, [
+            "progressToken": token,
+            "progress": .int(completed),
+            "total": .int(total),
+            "message": .string(message),
+        ])
+    }
+
+    /// Server-to-client notification. Nothing waits on it and nothing answers
+    /// it, so a serialisation failure is dropped rather than escalated — the
+    /// alternative is corrupting the response stream to report a lost hint.
+    nonisolated static func writeNotification(_ method: String,
+                                              _ params: [String: AnyCodableValue]) {
+        guard let line = notificationLine(method, params) else { return }
+        mcpStdoutLock.lock()
+        print(line)
+        fflush(stdout)
+        mcpStdoutLock.unlock()
+    }
+
+    /// The exact bytes `writeNotification` would emit. Split out so a test can
+    /// assert the framing without capturing the process's stdout.
+    nonisolated static func notificationLine(_ method: String,
+                                             _ params: [String: AnyCodableValue]) -> String? {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let notification = MCPNotification(jsonrpc: "2.0", method: method, params: params)
+        guard let data = try? encoder.encode(notification) else { return nil }
+        return String(data: data, encoding: .utf8)
     }
 
     private func toolHealthCheck() async throws -> [String: Any] {
@@ -771,8 +1196,12 @@ actor MCPServer {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         if let data = try? encoder.encode(response), let str = String(data: data, encoding: .utf8) {
+            // Same lock as the progress notifications: a reply must never
+            // interleave with a notification a still-running tool is emitting.
+            mcpStdoutLock.lock()
             print(str)
             fflush(stdout)
+            mcpStdoutLock.unlock()
             return
         }
         // A reply that will not serialise used to be dropped on the floor, which

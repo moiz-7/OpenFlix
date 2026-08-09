@@ -287,25 +287,68 @@ enum MCPToolRegistry {
         ),
         MCPToolDefinition(
             name: "project_run",
-            title: "Look up a project (does not run it)",
-            description: "Look up a multi-shot project by ID. NOTE: this tool does NOT execute the project — it returns the project's identity and the shell command that runs it. Execution spends money per shot and goes through the CLI's budget pre-flight, so it stays a deliberate `openflix project run <id>` rather than a single agent call.",
+            title: "Run a multi-shot project (spends money per shot)",
+            description: """
+                Execute a multi-shot project's DAG in dependency order. Every shot goes through the same budget pre-flight, \
+                prompt-safety, reference-image and hook gates as `openflix project run`. SPENDS THE USER'S OWN PROVIDER \
+                CREDIT once per shot (more for fanout/scatter shots) and cannot be undone.
+
+                TWO STEPS, BY DESIGN. Called with only `project_id` this SPENDS NOTHING: it returns a plan — the \
+                provider and model each shot would use, the per-shot and total cost estimate, which shots would be \
+                refused locally and why, and the current budget. To actually execute, call again with `confirm: true` \
+                AND `max_cost_usd` set to a ceiling you are willing to spend. The run is refused before anything is \
+                submitted if the estimate exceeds that ceiling, and halted mid-run if billed spend reaches it. Show the \
+                plan to the user and get their agreement before executing.
+
+                Partial completion is the normal outcome for a DAG. The result always reports what ran, what did not, \
+                what it cost, the run journal id, and the exact call that resumes it.
+                """,
             inputSchema: objectSchema(
                 required: ["project_id"],
                 properties: [
-                    "project_id": stringProp("The project ID to look up"),
-                    "strategy": stringProp("Accepted for forward compatibility; ignored, because this tool does not execute"),
-                    "evaluate": boolProp("Accepted for forward compatibility; ignored, because this tool does not execute"),
+                    "project_id": stringProp("The project ID to plan or run"),
+                    "confirm": boolProp("Set to true to ACTUALLY EXECUTE and spend money. Omitted or false returns a cost plan and spends nothing. Requires max_cost_usd."),
+                    "max_cost_usd": numberProp("Hard ceiling in USD for this run. Required when confirm is true. The run is refused up front if the estimate exceeds it, and stops dispatching once billed spend reaches it. It can only make the run stricter — it never raises the project's own budget or the daily/monthly limits."),
+                    "resume": boolProp("Reset shots a previous run left failed, in-flight, or blocked by an upstream failure back to pending, so this run retries them. Applies to the plan too."),
+                    "concurrency": intProp("Max shots dispatched in parallel (default: the project's own setting)"),
+                    "evaluate": boolProp("Run the quality evaluator after each shot. The heuristic evaluator is local and free; llm-vision spends money."),
+                    "quality_threshold": numberProp("Quality threshold 0-100 (implies evaluate)"),
+                    "timeout_seconds": numberProp("Stop dispatching new shots after this many seconds and return what completed (default 900, max 3600). Shots already submitted are still billed."),
                 ]
             ),
-            // Honest about what the implementation does today, which is read one
-            // record. The name is kept because clients may already reference it.
-            annotations: .localRead,
+            // Pessimistic on purpose, and NOT softened by the safe default.
+            // A client reads annotations from `tools/list`, before it knows
+            // what arguments will be passed, so the only honest annotation is
+            // the tool's worst case: this one can charge a provider account
+            // once per shot, irreversibly.
+            annotations: MCPToolAnnotations(readOnly: false, destructive: true,
+                                            idempotent: false, openWorld: true),
             outputSchema: objectSchema(
-                required: ["project_id", "name", "status"],
+                required: ["executed", "mode", "project_id"],
                 properties: [
-                    "project_id": stringProp("The project looked up"),
+                    "executed": boolProp("False for a plan — nothing was submitted and nothing was billed. True only when shots were actually dispatched."),
+                    "mode": stringProp("\"plan\" or \"execute\""),
+                    "project_id": stringProp("The project"),
                     "name": stringProp("Project name"),
-                    "status": stringProp("How to actually run it"),
+                    "status": stringProp("Project status after the run: succeeded, partial_failure, failed, paused or cancelled"),
+                    "run_id": stringProp("Run journal id — ~/.openflix/runs/<run_id>.json, readable after the call and after a crash"),
+                    "timed_out": boolProp("True when timeout_seconds stopped the run; the project is left paused and resumable"),
+                    "waves": intProp("Number of dependency levels in the graph"),
+                    "shots_to_run": intProp("Shots this run would attempt"),
+                    "shots_blocked": intProp("Shots that would be refused locally, before any provider call"),
+                    "shots_already_terminal": intProp("Shots this run will not touch"),
+                    "shots_succeeded": intProp("Shots that succeeded"),
+                    "shots_failed": intProp("Shots that failed"),
+                    "shots_skipped": intProp("Shots skipped because an upstream shot failed"),
+                    "shots_pending": intProp("Shots never reached"),
+                    "estimated_cost_usd": numberProp("Total pre-flight estimate in USD"),
+                    "estimated_cost_is_upper_bound": boolProp("Always true — see caveats"),
+                    "actual_cost_usd": numberProp("Billed cost in USD, after execution"),
+                    "cost_ceiling_usd": numberProp("The ceiling this run was held to"),
+                    "shots": arrayProp("Per-shot plan or outcome"),
+                    "budget": objectProp("Current budget status, the same object budget_status returns"),
+                    "caveats": arrayProp("What the estimate does not capture"),
+                    "next_step": stringProp("The exact call to make next"),
                 ]
             )
         ),
@@ -534,6 +577,10 @@ enum MCPToolRegistry {
 
     private static func boolProp(_ description: String) -> [String: AnyCodableValue] {
         ["type": .string("boolean"), "description": .string(description)]
+    }
+
+    private static func objectProp(_ description: String) -> [String: AnyCodableValue] {
+        ["type": .string("object"), "description": .string(description)]
     }
 
     private static func arrayProp(_ description: String,

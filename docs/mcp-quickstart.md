@@ -76,14 +76,17 @@ Claude Desktop (`claude_desktop_config.json`) or `.claude.json`:
 | `submit_vote` | **Share a pairwise preference vote with the community** (winner beat loser) — feeds `--route smart` for everyone. Only provider/model names + optional category are sent; deduplicated server-side, safe to retry. |
 | `get_metrics` | Provider performance metrics (quality, latency, cost, success rate). |
 | `budget_status` | Current spend vs. daily/per-generation/monthly limits. |
-| `project_run` | Run a multi-shot project. |
+| `project_run` | **Run a multi-shot project's DAG — spends money once per shot.** Called with only `project_id` it spends nothing and returns a cost plan (per-shot provider/model, total estimate, which shots would be refused locally, current budget). Executing needs `confirm: true` **and** `max_cost_usd`, which is enforced both before submission and as a live budget gate during the run. See [`mcp-protocol.md`](mcp-protocol.md). |
 | `health_check` | Which providers have a key on this machine (local Keychain read — it does not ping anyone). |
 
 Every tool is annotated, so your agent's client can tell a local read from a
 call that spends money **before** it makes it: `generate`, `generate_submit`,
-`retry_generation` and `cancel_generation` are `readOnlyHint: false` +
-`destructiveHint: true`; the reads are `readOnlyHint: true` +
-`openWorldHint: false`. `submit_feedback` is the one write that is
+`retry_generation`, `project_run` and `cancel_generation` are
+`readOnlyHint: false` + `destructiveHint: true`; the reads are
+`readOnlyHint: true` + `openWorldHint: false`. `project_run` keeps the
+pessimistic annotation even though its *default* is a free dry run — a client
+reads the annotation before it knows the arguments, so the only honest hint is
+the worst case. `submit_feedback` is the one write that is
 `openWorldHint: false`, which is the wire saying out loud that it never leaves
 the machine.
 

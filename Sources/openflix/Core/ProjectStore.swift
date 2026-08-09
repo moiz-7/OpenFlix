@@ -36,10 +36,27 @@ final class ProjectStore {
         projectDir(id).appendingPathComponent("project.lock")
     }
 
-    private func withFileLock<T>(projectId: String, _ body: () throws -> T) rethrows -> T {
+    /// Serialises access to one project's directory across processes.
+    ///
+    /// `creating: false` is what a **read** must pass. This used to create the
+    /// directory and the lock file unconditionally, so *looking up a project
+    /// that does not exist* left `~/.openflix/projects/<id>/project.lock`
+    /// behind — a directory per bad id. That was merely untidy while the only
+    /// caller was a human typing a name they had just seen; it is not untidy
+    /// now that `project_run` is an MCP tool an agent can call with an id it
+    /// guessed, in a loop. There is also nothing to serialise against when the
+    /// project isn't there: the answer is nil either way.
+    private func withFileLock<T>(projectId: String,
+                                 creating: Bool = true,
+                                 _ body: () throws -> T) rethrows -> T {
         let dir = projectDir(projectId)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        let fd = open(lockFile(projectId).path, O_CREAT | O_RDWR, 0o644)
+        if creating {
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        } else if !FileManager.default.fileExists(atPath: dir.path) {
+            return try body()
+        }
+        let flags = creating ? (O_CREAT | O_RDWR) : O_RDWR
+        let fd = open(lockFile(projectId).path, flags, 0o644)
         guard fd >= 0 else { return try body() }
         flock(fd, LOCK_EX)
         defer { flock(fd, LOCK_UN); close(fd) }
@@ -56,7 +73,7 @@ final class ProjectStore {
     }
 
     func get(_ id: String) -> Project? {
-        withFileLock(projectId: id) {
+        withFileLock(projectId: id, creating: false) {
             lock.lock(); defer { lock.unlock() }
             return load(id)
         }
@@ -88,8 +105,13 @@ final class ProjectStore {
         }
     }
 
+    // `creating: false` for the same reason as `get`: the body bails on
+    // `load(id) == nil`, so a mutation aimed at a project that isn't there
+    // writes nothing — and creating its directory first left a lock file for a
+    // project that never existed. `save` is the only caller that legitimately
+    // brings a directory into being.
     func update(id: String, mutate: (inout Project) -> Void) {
-        withFileLock(projectId: id) {
+        withFileLock(projectId: id, creating: false) {
             lock.lock(); defer { lock.unlock() }
             guard var project = load(id) else { return }
             mutate(&project)

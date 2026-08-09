@@ -131,17 +131,25 @@ The direction that matters is *not* "declare everything false":
 | Tools | `readOnlyHint` | `destructiveHint` | `idempotentHint` | `openWorldHint` |
 |---|---|---|---|---|
 | `generate`, `generate_submit`, `retry_generation` | false | **true** | false | true |
+| **`project_run`** | false | **true** | false | true |
 | `cancel_generation` | false | **true** | false | true |
 | `generate_poll` | false | false | true | true |
 | `evaluate_quality` | false | false | false | true |
 | `submit_vote` | false | false | true | true |
 | `submit_feedback` | false | false | false | **false** |
-| `list_generations`, `get_generation`, `list_providers`, `get_metrics`, `budget_status`, `health_check`, `project_run` | **true** | — | — | **false** |
+| `list_generations`, `get_generation`, `list_providers`, `get_metrics`, `budget_status`, `health_check` | **true** | — | — | **false** |
 
 MCP has no "costs money" hint, and a client uses `destructiveHint` to decide
 whether to ask the human first. Marking a tool that charges the user
 `destructiveHint: false` would make it **less** guarded than it is today, so
 every tool that spends keeps the pessimistic value on purpose.
+
+`project_run` is the sharpest case. Its **default** behaviour is a free, local
+dry run — but a client reads `annotations` from `tools/list`, long before it
+knows what arguments will be passed, so the only honest hint is the tool's
+**worst case**: one irreversible charge per shot, across a whole graph. Softening
+it because "most calls are safe" would make the tool that can spend the most on
+this server the least guarded one.
 
 `destructiveHint` and `idempotentHint` are meaningful only when `readOnlyHint` is
 false, so read-only tools do not ship them at all.
@@ -149,6 +157,127 @@ false, so read-only tools do not ship them at all.
 `submit_feedback` is `openWorldHint: false` and `submit_vote` is
 `openWorldHint: true` — the wire now says which of the two leaves the machine,
 which is the whole difference between them.
+
+## `project_run` — the one tool that spends across a whole graph
+
+`project_run` executes a project's DAG of shots. It is the most consequential
+tool on either server: `generate` charges once, this charges **once per shot**,
+in dependency order, on the user's own provider credit.
+
+It used to look the project up and tell you to use the shell. A tool named
+`project_run` that does not run is exactly the gap an agent trips over, so it
+runs — behind a shape designed for a caller that is a language model in a loop.
+
+### Two arguments, both deliberate
+
+| Call | What happens |
+|---|---|
+| `{"project_id": "…"}` | **Spends nothing.** Returns a plan. |
+| `+ "confirm": true` | Refused — `cost_ceiling_required`, carrying the estimate. |
+| `+ "confirm": true, "max_cost_usd": N` | Executes, held to `N`. |
+
+The default is the safe one, so the cheapest thing an agent can do is find out
+the price. Executing needs **two** arguments, and one of them is a number the
+caller had to form an intention about. `confirm` alone is not enough precisely
+because a boolean is the easiest thing in the world to set to `true`.
+
+`max_cost_usd` is not ceremony. It is enforced twice:
+
+1. **Before anything is submitted** — if the plan's estimate exceeds it, the run
+   is refused and the reply carries both numbers.
+2. **During the run** — it is handed to `DAGExecutor` as a cost budget, so it
+   also stops dispatch once *billed* spend reaches it. An estimate is a guess;
+   the provider's invoice is not.
+
+It can only ever **narrow**. The project's own `costBudgetUSD` still applies
+(the gate takes whichever is tighter), and `BudgetManager`'s daily, monthly and
+per-generation limits still apply underneath, at `GenerationEngine.submit`.
+Nothing an agent can pass raises a limit.
+
+### What the plan contains
+
+Everything needed to decide, and nothing that costs anything to produce:
+
+- the provider and model **each shot would actually be dispatched to** — through
+  `DAGExecutor.plannedTarget`, the same function the executor uses, so a plan
+  cannot quote one model and run another;
+- the per-shot and total estimate, with `candidates` > 1 where fanout or
+  scatter-gather bills more than once;
+- **which shots would be refused locally, and why** — the free, deterministic
+  half of `GenerationEngine.submit`'s pre-flight, replayed: unknown provider,
+  missing key, a `file://` reference image, an impossible duration, a blocked
+  prompt. Knowing shot 5 is doomed *before* shots 1-4 are billed is the whole
+  point. (The pre-generate hook is deliberately **not** run — it is a user
+  program with side effects, and a plan must not trip it.)
+- the current budget, so the estimate and the limit arrive together;
+- `caveats`, naming what the estimate does not capture;
+- `next_step`: the literal JSON to send to execute.
+
+`executed` is the first key in every reply and is `false` for a plan. A model
+skimming the result cannot mistake one for the other.
+
+### What the client sees during a long run
+
+A DAG of N shots takes minutes, and a `tools/call` that blocks silently for ten
+of them is its own bug. Three things address it:
+
+- **`notifications/progress`**, one per node reaching a terminal state, carrying
+  `progress`/`total` and a message naming the shot, its status and the cost
+  billed so far. It is emitted **only when the client puts a `progressToken` in
+  the request's `_meta`**, which is what the spec requires and what makes adding
+  it a no-op for every client that exists today. The notifications are written
+  under the same lock as responses — the newline is the framing on this
+  transport, and an interleaved write would be unrecoverable.
+- **A run journal, always.** `run_id` is in the reply and the file is at
+  `~/.openflix/runs/<run_id>.json`, written incrementally per node. It survives
+  a crash, a disconnect and a timeout.
+- **A wall-clock bound.** `timeout_seconds` (default 900, max 3600) stops
+  dispatch and returns what completed. It **pauses** rather than cancels,
+  because a paused project is resumable and a cancelled one is refused by the
+  status gate — timing out must never be the thing that strands a run. The
+  per-shot poll timeout is capped to the remaining budget so one shot cannot
+  consume the whole call.
+
+Honest limitation: while a tool call is executing, the server is not reading
+stdin, so a `notifications/cancelled` sent mid-run is not seen until the call
+returns. `timeout_seconds` is the bound that actually exists. And a client that
+sends no `progressToken` sees nothing until the reply — inherent to a blocking
+request/response call.
+
+### Partial failure is the normal case
+
+Shot 3 of 7 fails; 4-7 are downstream of it. The reply says so:
+
+- `status` is the project's — `partial_failure`, `failed`, `paused`. `succeeded`
+  requires zero failures; a run in which everything failed is never reported as
+  a success.
+- counts for succeeded / failed / skipped / pending, plus **every** shot with its
+  provider, model, generation id, `openflix://generation/<id>` URI, cost and
+  error — not just the failures.
+- `actual_cost_usd` against `cost_ceiling_usd`.
+- `next_step`: what to fix and the exact resume call.
+
+`resume: true` resets three groups back to pending — shots left `.dispatched`/
+`.processing`/`.evaluating` by a dead run, `.failed` shots, and shots the drain
+marked `.skipped` **with its own "Blocked by upstream failure" marker**. That
+third group is easy to miss and expensive to get wrong: without it a resume
+fixes shot 3, leaves 4-7 dead, and then reports `succeeded` because
+`failed == 0`. Shots skipped for any other reason are left alone.
+
+### Refusals are in-band
+
+Every refusal above is a tool result with `isError: true` and a JSON body naming
+the `error` code and the numbers to build the corrected call — not a JSON-RPC
+`error`. That layer is for protocol failures, which a client may treat as a
+transport problem; "I will not spend your money without a cost ceiling" is a
+result the model must read and act on.
+
+### What it does **not** do
+
+It adds no path to a provider. Execution is `DAGExecutor` → `GenerationEngine.submit`,
+where the budget pre-flight, the prompt-safety check, the reference-image rule
+and the pre/post-generate hooks live. There is no second route, and the plan
+reaches nothing at all.
 
 ## Structured results
 

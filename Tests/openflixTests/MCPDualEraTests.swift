@@ -343,7 +343,10 @@ final class MCPDualEraTests: XCTestCase {
     /// assumed destructive, so marking a tool that charges the user's provider
     /// `destructiveHint: false` would make it *less* guarded than it is today.
     func testEveryToolThatSpendsMoneyStaysMarkedDestructive() {
-        for name in ["generate", "generate_submit", "retry_generation"] {
+        // `project_run` joined this list when it stopped being a lookup and
+        // started executing a DAG (M-C). It spends once per shot, so it is the
+        // most expensive entry here, not an exception to it.
+        for name in ["generate", "generate_submit", "retry_generation", "project_run"] {
             guard let tool = MCPToolRegistry.allTools.first(where: { $0.name == name }) else {
                 return XCTFail("missing tool \(name)")
             }
@@ -364,8 +367,12 @@ final class MCPDualEraTests: XCTestCase {
     }
 
     func testLocalReadsAreAnnotatedReadOnlyAndClosedWorld() {
+        // `project_run` is deliberately NOT here any more: it executes now, so
+        // annotating it as a read would make the tool that spends the most
+        // money on this server the least guarded one. See
+        // MCPProjectRunTests.testProjectRunIsAnnotatedForItsWorstCaseNotItsDefault.
         let reads = ["list_generations", "get_generation", "list_providers",
-                     "get_metrics", "budget_status", "health_check", "project_run"]
+                     "get_metrics", "budget_status", "health_check"]
         for name in reads {
             guard let tool = MCPToolRegistry.allTools.first(where: { $0.name == name }) else {
                 return XCTFail("missing tool \(name)")
