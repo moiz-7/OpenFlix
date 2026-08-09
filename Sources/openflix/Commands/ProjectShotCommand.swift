@@ -62,6 +62,26 @@ struct ShotAdd: AsyncParsableCommand {
         guard !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             Output.failMessage("Prompt cannot be empty", code: "invalid_input")
         }
+        // Same duration rules as `generate --duration`, applied where the value
+        // enters the project rather than only at spend time — a shot stored
+        // with an impossible duration is a trap laid for a later `project run`.
+        if let provider, let model {
+            let modelInfo = ProviderRegistry.shared.allModels.first {
+                $0.providerId == provider && $0.modelId == model
+            }
+            do {
+                try GenerationEngine.validateDuration(duration, providerID: provider,
+                                                      model: model, modelInfo: modelInfo)
+            } catch let e as OpenFlixError {
+                Output.failMessage(e.errorDescription ?? e.code, code: e.code)
+            } catch {
+                Output.failMessage(error.localizedDescription, code: "invalid_input")
+            }
+        } else if let d = duration, !d.isFinite || d <= 0 || d > GenerationEngine.maxRequestDurationSeconds {
+            Output.failMessage(
+                "--duration must be a positive number of seconds no greater than \(GenerationEngine.formatSeconds(GenerationEngine.maxRequestDurationSeconds)) (got \(d)).",
+                code: "invalid_input")
+        }
 
         let deps = dependencies?.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) } ?? []
         let shot = Shot(

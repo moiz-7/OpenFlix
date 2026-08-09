@@ -5,6 +5,12 @@ speaks JSON-RPC 2.0 over stdio, so any MCP-capable agent (Claude Code, Claude
 Desktop, etc.) can generate video, check budgets, and vote on results as
 native tools.
 
+It is **dual-era**: it serves the current stateless revision (`2026-07-28` —
+`server/discover`, per-request `_meta`, no handshake) *and* the handshake-based
+revisions clients use today (`2025-06-18`, `2024-11-05`), on the same pipe with
+no configuration. See [`mcp-protocol.md`](mcp-protocol.md) for the details, the
+tool annotations, and what was deliberately left out.
+
 ## 1. Install the CLI
 
 ```bash
@@ -71,9 +77,31 @@ Claude Desktop (`claude_desktop_config.json`) or `.claude.json`:
 | `get_metrics` | Provider performance metrics (quality, latency, cost, success rate). |
 | `budget_status` | Current spend vs. daily/per-generation/monthly limits. |
 | `project_run` | Run a multi-shot project. |
-| `health_check` | Provider reachability check. |
+| `health_check` | Which providers have a key on this machine (local Keychain read — it does not ping anyone). |
 
-Plus 3 resources: `openflix://providers`, `openflix://metrics`, `openflix://budget`.
+Every tool is annotated, so your agent's client can tell a local read from a
+call that spends money **before** it makes it: `generate`, `generate_submit`,
+`retry_generation` and `cancel_generation` are `readOnlyHint: false` +
+`destructiveHint: true`; the reads are `readOnlyHint: true` +
+`openWorldHint: false`. `submit_feedback` is the one write that is
+`openWorldHint: false`, which is the wire saying out loud that it never leaves
+the machine.
+
+Plus 3 resources — `openflix://providers`, `openflix://metrics`,
+`openflix://budget` — and 2 resource templates,
+`openflix://generation/{id}` and `openflix://recipe/{id}`, which are the same
+strings the OpenFlix app accepts as clickable deep links.
+
+## Your recipes are prompts
+
+Every saved `.openflix` recipe shows up in `prompts/list` as `recipe_<id>`, with
+its declared args as typed prompt arguments — an arg with no default is
+`required`, and an `enum` arg autocompletes its choices through
+`completion/complete`. Two built-ins ship too: `compare_providers` and
+`budget_check`.
+
+Rendering a prompt returns **text only**. It never submits a generation —
+spending stays an explicit `generate` tool call, which is budget-checked first.
 
 ## Smart routing from an agent
 

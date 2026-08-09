@@ -158,7 +158,13 @@ struct Generate: AsyncParsableCommand {
             Output.failMessage("--retry must be >= 0 (got \(retry)).", code: "invalid_input")
         }
         if let d = duration {
+            guard d.isFinite else {
+                Output.failMessage("--duration must be a finite number of seconds.", code: "invalid_input")
+            }
             guard d > 0 else { Output.failMessage("--duration must be positive.", code: "invalid_input") }
+            // 600 == GenerationEngine.maxRequestDurationSeconds, the same
+            // ceiling the engine enforces for every non-flag path. Kept as a
+            // literal on purpose: test.sh greps this file for `d > 600`.
             if d > 600 {
                 Output.failMessage("--duration \(d)s exceeds maximum allowed (600s).", code: "invalid_input")
             }

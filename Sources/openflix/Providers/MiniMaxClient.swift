@@ -37,7 +37,15 @@ final class MiniMaxClient: VideoProvider {
             "model": request.model,
             "prompt": request.prompt,
         ]
-        if let d = request.durationInt() { body["duration"] = d }
+        // MiniMax accepts only 6 or 10 second durations — any other value is a
+        // 400 the caller pays for in wall-clock time, after the request has
+        // already been queued. Snap to the nearest legal value instead of
+        // forwarding e.g. `7`. 6 and 10 are unchanged, so no working call
+        // changes shape. Still routed through `durationInt()` rather than
+        // `Int(...)`: a non-finite duration yields nil and the key is omitted,
+        // where `Int(Double.nan)` would trap and abort the process.
+        // The app's MiniMaxProvider has always done this; the CLI had not.
+        if let d = request.durationInt() { body["duration"] = d <= 6 ? 6 : 10 }
         if let ref = request.referenceImageURL { body["first_frame_image"] = ref.absoluteString }
 
         var urlReq = URLRequest(url: base.appendingPathComponent("video_generation"))

@@ -108,6 +108,7 @@ enum WorkflowSpecError: Error, LocalizedError {
     case argsWithoutRecipe(String)
     case unknownRecipe(stage: String, recipeId: String)
     case unknownReference(stage: String, source: String)
+    case invalidDuration(stage: String, reason: String)
 
     var errorDescription: String? {
         switch self {
@@ -143,6 +144,8 @@ enum WorkflowSpecError: Error, LocalizedError {
             return "Stage '\(stage)' references unknown recipe '\(recipeId)' (not in the local recipe store). Import it first: openflix recipe import <file-or-url>"
         case .unknownReference(let stage, let source):
             return "Stage '\(stage)' has reference_from unknown stage '\(source)'"
+        case .invalidDuration(let stage, let reason):
+            return "Stage '\(stage)' has invalid duration: \(reason)"
         }
     }
 
@@ -164,6 +167,7 @@ enum WorkflowSpecError: Error, LocalizedError {
         case .argsWithoutRecipe:  return "args_without_recipe"
         case .unknownRecipe:      return "unknown_recipe"
         case .unknownReference:   return "unknown_reference"
+        case .invalidDuration:    return "invalid_duration"
         }
     }
 }
@@ -240,6 +244,27 @@ enum WorkflowParser {
             }
             if let f = stage.fanout, f < 1 || f > WorkflowSpec.maxFanout {
                 throw WorkflowSpecError.invalidFanout(stage: stage.id, fanout: f)
+            }
+            // Duration bounds that hold whatever the stage resolves to. The
+            // model-specific ceiling is enforced at GenerationEngine.submit
+            // (provider/model may still be unresolved here: route "smart",
+            // recipe stages). Checking here means `--dry-run` refuses an
+            // impossible workflow instead of blessing a plan the real run
+            // would reject.
+            if let d = stage.duration {
+                if !d.isFinite {
+                    throw WorkflowSpecError.invalidDuration(
+                        stage: stage.id, reason: "must be a finite number of seconds (got \(d))")
+                }
+                if d <= 0 {
+                    throw WorkflowSpecError.invalidDuration(
+                        stage: stage.id, reason: "must be positive (got \(GenerationEngine.formatSeconds(d))s)")
+                }
+                if d > GenerationEngine.maxRequestDurationSeconds {
+                    throw WorkflowSpecError.invalidDuration(
+                        stage: stage.id,
+                        reason: "\(GenerationEngine.formatSeconds(d))s exceeds maximum allowed (\(GenerationEngine.formatSeconds(GenerationEngine.maxRequestDurationSeconds))s)")
+                }
             }
             if let j = stage.judge {
                 if j.keep < 1 {
@@ -459,7 +484,19 @@ enum WorkflowCost {
     /// cost/second × duration (default 4s, matching generate --dry-run) × fanout.
     static func estimate(costPerSecondUSD: Double?, duration: Double?, fanout: Int) -> Double? {
         guard let cps = costPerSecondUSD else { return nil }
-        return cps * (duration ?? 4) * Double(max(1, fanout))
+        let d = duration ?? 4
+        let raw = cps * d * Double(max(1, fanout))
+        // Finite inputs must not produce a non-finite estimate. `1e308 × 32`
+        // overflows to +inf, and an infinite estimate is a number this function
+        // invented — it flows into the budget gate and into the run journal.
+        // A NaN that arrived as NaN is deliberately left alone: sanitising a
+        // poisoned duration is the caller's job (ModelPricing.estimate /
+        // GenerationEngine.preflightEstimate), and hiding it here would make
+        // that upstream guard untestable.
+        if d.isFinite, !raw.isFinite {
+            return raw < 0 ? -Double.greatestFiniteMagnitude : .greatestFiniteMagnitude
+        }
+        return raw
     }
 }
 

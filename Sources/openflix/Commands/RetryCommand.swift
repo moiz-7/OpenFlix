@@ -66,10 +66,10 @@ struct Retry: AsyncParsableCommand {
         // Faithfully reproduce the original request — a reference image or extra
         // params (seed, audio, …) dropped here would silently resubmit a
         // *different*, still-billed generation, contradicting "same parameters".
-        let refURL = original.referenceImageURL.flatMap { URL(string: $0) }
         let extras: [String: Any] = original.extraParams?.mapValues { $0.toAny() } ?? [:]
 
         do {
+            let refURL = try GenerationEngine.parseReferenceImage(original.referenceImageURL)
             let gen: CLIGeneration
             if wait || stream {
                 gen = try await GenerationEngine.submitAndWait(

@@ -35,7 +35,19 @@ struct ScatterGatherExecutor {
         // the list) reaches here without the guard that the routed path gets.
         guard !targets.isEmpty else { return [] }
 
-        let imageURL = shot.referenceImageURL.flatMap { URL(string: $0) }
+        // A reference image that can't be parsed must fail the scatter loudly,
+        // not disappear: dropping it turns every target into a text-to-video
+        // generation that is still billed. See GenerationEngine.parseReferenceImage.
+        let imageURL: URL?
+        do { imageURL = try GenerationEngine.parseReferenceImage(shot.referenceImageURL) }
+        catch {
+            let msg = (error as? OpenFlixError)?.errorDescription ?? error.localizedDescription
+            return targets.map {
+                ScatterResult(generationId: "", provider: $0.provider, model: $0.model,
+                              status: "failed", videoURL: nil, costUSD: nil,
+                              durationMs: 0, errorMessage: msg)
+            }
+        }
         let window = max(1, min(maxConcurrentScatter, targets.count))
 
         return await withTaskGroup(of: ScatterResult.self) { group in

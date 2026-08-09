@@ -123,6 +123,12 @@ struct ProviderRouter {
             candidates = candidates.filter { $0.supportsImageToVideo }
         }
         if let d = shot.duration {
+            // A duration the engine will refuse has no viable target at all.
+            // Routing to one only defers the refusal to spend time — and the
+            // "unknown max means no constraint" rule below would otherwise
+            // happily nominate a model for a ten-hour shot.
+            // See GenerationEngine.validateDuration.
+            guard d.isFinite, d > 0, d <= GenerationEngine.maxRequestDurationSeconds else { return [] }
             candidates = candidates.filter { m in
                 guard let max = m.maxDurationSeconds else { return true }
                 return max >= d

@@ -104,6 +104,22 @@ struct Batch: AsyncParsableCommand {
             } catch {
                 Output.failMessage("Item \(i): \(error.localizedDescription)", code: "invalid_input")
             }
+            // Ingestion-level duration + reference checks. GenerationEngine.submit
+            // is the authority (every spending path goes through it), but a batch
+            // submits in parallel — without this, item 7's impossible duration
+            // only surfaces after items 0-6 have already been billed.
+            let modelInfo = ProviderRegistry.shared.allModels.first {
+                $0.providerId == item.provider && $0.modelId == item.model
+            }
+            do {
+                try GenerationEngine.validateDuration(item.duration, providerID: item.provider,
+                                                      model: item.model, modelInfo: modelInfo)
+                _ = try GenerationEngine.parseReferenceImage(item.image)
+            } catch let e as OpenFlixError {
+                Output.failMessage("Item \(i): \(e.errorDescription ?? e.code)", code: e.code)
+            } catch {
+                Output.failMessage("Item \(i): \(error.localizedDescription)", code: "invalid_input")
+            }
         }
 
         // Execute batch with concurrency limit
@@ -142,13 +158,16 @@ struct Batch: AsyncParsableCommand {
             maxRetries: retry
         )
 
-        let imageURL = item.image.flatMap { URL(string: $0) }
         var extraParams: [String: Any] = [:]
         if let ep = item.extraParams {
             for (k, v) in ep { extraParams[k] = v }
         }
 
         do {
+            // Parsed inside the do-block: a reference image that URL(string:)
+            // can't handle used to become nil and the item was billed as
+            // text-to-video with no message.
+            let imageURL = try GenerationEngine.parseReferenceImage(item.image)
             let gen: CLIGeneration
             if wait || stream {
                 gen = try await GenerationEngine.submitAndWait(

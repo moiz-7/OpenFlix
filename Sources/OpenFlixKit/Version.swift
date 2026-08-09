@@ -12,5 +12,5 @@ import Foundation
 /// verifies the tag matches what the built binary reports and fails otherwise,
 /// so the two cannot diverge silently.
 public enum OpenFlixVersion {
-    public static let current = "1.0.2"
+    public static let current = "1.1.0"
 }

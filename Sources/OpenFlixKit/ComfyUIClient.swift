@@ -72,7 +72,14 @@ public final class ComfyUIClient: VideoProvider {
     public static func renderGraph(template: String, prompt: String,
                                    negativePrompt: String?, seed: Int,
                                    durationSeconds: Double?) -> String {
-        let duration = durationSeconds ?? 4
+        // `String(Int(duration))` traps on NaN/±inf/overflow and aborts the
+        // process. This renders a *workflow graph*, so a non-finite value that
+        // reached here would take the whole run down while producing no output
+        // at all — and it would do so inside the one provider that is free and
+        // local, where a user is most likely to be experimenting with odd
+        // values. Fall back to the same default a missing duration gets.
+        let requested = durationSeconds ?? 4
+        let duration = (requested.isFinite && requested > 0 && requested < 86_400) ? requested : 4
         let durationText = duration.truncatingRemainder(dividingBy: 1) == 0
             ? String(Int(duration)) : String(duration)
         return template

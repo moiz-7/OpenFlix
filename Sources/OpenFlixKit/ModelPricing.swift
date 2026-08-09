@@ -65,6 +65,13 @@ public enum ModelPricing {
     /// duration yields a negative "credit".
     public static func estimate(durationSeconds: Double, modelId: String, providerId: String) -> Double {
         guard durationSeconds.isFinite, durationSeconds > 0 else { return 0 }
+        // A provider nobody has heard of cannot bill: ProviderRegistry refuses
+        // it and GenerationEngine.submit throws before any network call, so
+        // quoting the global fallback for it invents a cost that shows up in
+        // plans and reservations. A *known* provider with an unlisted model is
+        // the opposite case — that really can bill, so it keeps its provider
+        // fallback rather than estimating $0 and skipping the budget gate.
+        guard costPerSecondUSD[modelId] != nil || providerFallbackUSD[providerId] != nil else { return 0 }
         return costPerSecond(modelId, providerId: providerId) * durationSeconds
     }
 }

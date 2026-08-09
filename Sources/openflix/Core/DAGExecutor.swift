@@ -479,9 +479,12 @@ actor DAGExecutor {
             maxRetries: maxRetries
         )
 
-        let imageURL = shot.referenceImageURL.flatMap { URL(string: $0) }
-
         do {
+            // Parsed inside the do-block so an unusable reference image fails
+            // the shot with a message instead of being silently dropped and
+            // billed as a text-to-video generation.
+            let imageURL = try GenerationEngine.parseReferenceImage(shot.referenceImageURL)
+
             store.updateShot(projectId: projectId, shotId: shot.id) { s in
                 s.status = .processing
             }

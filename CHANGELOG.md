@@ -2,6 +2,72 @@
 
 All notable changes to the `openflix` CLI. Format loosely follows [Keep a Changelog](https://keepachangelog.com); versions are git tags (`v*`), which the release workflow verifies against the binary's reported version.
 
+## [1.1.0] — 2026-08-08
+
+**1.0.2 was tagged in code but never released** — `Version.swift` said `1.0.2`,
+no `v1.0.2` tag was ever pushed, and Homebrew continued serving 1.0.1. So this
+release is the first one that puts the 1.0.2 demo-readiness fixes below into
+anyone's hands, alongside everything new here.
+
+### Added
+- **The MCP server speaks the current protocol era.** It served only
+  `2024-11-05`, and the `2026-07-28` revision's own compatibility matrix says
+  *Modern client → Legacy server = **Fails***. `openflix mcp` is the server that
+  spends money (`generate`, `generate_submit`), so that break would have taken
+  out the half of the agent story that actually creates video. It now answers
+  `server/discover` **and** `initialize` on the same pipe, serving
+  `2026-07-28` / `2025-06-18` / `2024-11-05`, and returns `-32022` with the
+  supported list rather than silence when asked for a revision it does not know.
+  A client pinned to `2024-11-05` still works, unchanged.
+- **MCP depth:** tool annotations (spending tools are marked destructive),
+  `outputSchema` + `structuredContent`, resource templates, recipes exposed as
+  MCP prompts with argument completion.
+- **Logging.** There was none — zero `OSLog` or `Logger` across the whole
+  package — in a tool that spends BYOK money unattended. Every submission,
+  terminal status, refusal (with its reason) and provider HTTP failure is now
+  recorded to `~/.openflix/logs/openflix.log` (JSONL, 1 MiB rotation) and
+  `OSLog`. **Never to stdout**, so machine-readable output is unaffected. API
+  keys, tokens and prompt text are redacted. Control with `OPENFLIX_LOG_LEVEL`,
+  `OPENFLIX_LOG_FILE`, `OPENFLIX_LOG_STDERR`.
+
+### Fixed
+- **Security: path traversal was reachable through MCP.** Record stores resolved
+  an agent-supplied id straight into `~/.openflix/<kind>/<id>.json`, so `../`
+  escaped the directory. Identifiers are now validated on tool arguments and
+  templated resource reads.
+- **`batch` billed you before it validated.** Items ran in parallel and each was
+  checked at submit, so a bad duration on item 7 surfaced *after* items 0–6 had
+  been sent to providers and charged. Every item is now validated before any is
+  submitted.
+- **Duration is refused honestly everywhere, not just on `generate`.**
+  `batch` / `recipe` / `project` / `workflow` / scatter / MCP silently
+  normalised an impossible value instead of refusing it; the invariant now lives
+  at `GenerationEngine.submit`, which every spend path goes through.
+- **Reference images with spaces or `%` were dropped silently.** `URL(string:)`
+  returned nil before the "local images are never uploaded" refusal could fire,
+  so the generation ran as text-to-video and was billed. It now refuses with a
+  message, and remote URLs containing spaces are encoded rather than discarded.
+- **Cost estimates could be fabricated or non-finite.** A nonexistent provider
+  quoted a made-up $0.05; workflow cost estimation could overflow finite inputs
+  to infinity, and non-finite math defeats budget gates (`NaN > limit` is false).
+- **`project_run` claimed to execute a project and never did.** Its MCP
+  description said "Execute a multi-shot project DAG" while it only returned the
+  shell command to run. The description now says what it does; execution stays a
+  deliberate `openflix project run <id>` because it spends money per shot.
+- **`--timeout` could abort the process after a generation was already billed.**
+  `Int(Double)` traps on a non-finite value, and this one ran on the timeout
+  path — losing the record of something the user had paid for.
+- Scatter/gather no longer nominates targets for an impossible shot length;
+  ComfyUI graph rendering no longer traps on a non-finite duration.
+
+### Internal
+- Tests: **186 → 392** unit, **216 → 231** end-to-end. `MCPServer` and
+  `DAGExecutor` had zero coverage and now have real coverage of the abort,
+  deadlock and empty-input classes this project has been bitten by before.
+- A cross-repo tripwire in `test.sh` pins the on-disk generation-record keys the
+  macOS app reads, including a `CodingKeys` check — an encoder change would
+  otherwise break `openflix://generation/<id>` deep links silently.
+
 ## [1.0.2] — 2026-08-06
 
 The demo-readiness release. Nothing here changes the API surface; all of it is

@@ -1154,36 +1154,98 @@ else
     fail "MCP JSON-RPC protocol types"
 fi
 
-# ── 120. Round 6: MCP initialize handler ────────────────
-echo "120. Round 6: MCP initialize handler"
-if grep -q "handleInitialize" Sources/openflix/Core/MCPServer.swift; then
-    pass "MCP initialize handler"
+# ── 120-123. MCP: driven over stdio, not grepped for ────
+# These four used to `grep -q "handleInitialize"` (etc.) in MCPServer.swift.
+# That asserts a private Swift function NAME, so an internal refactor that
+# keeps the protocol perfectly intact fails them, while a refactor that keeps
+# the names and breaks the wire format passes. Replaced with a real JSON-RPC
+# round-trip over stdio — the thing an agent actually depends on.
+#
+# Deliberately NOT asserted here: the negotiated protocolVersion and the
+# per-era result shapes. Dual-era negotiation is its own workstream with its
+# own tests; pinning a revision string here would just fight it.
+MCP_SESSION=$(printf '%s\n' \
+ '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test.sh","version":"1"}}}' \
+ '{"jsonrpc":"2.0","id":2,"method":"tools/list"}' \
+ '{"jsonrpc":"2.0","id":3,"method":"resources/list"}' \
+ '{"jsonrpc":"2.0","id":4,"method":"no/such/method"}' \
+ '{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"not_a_tool","arguments":{}}}' \
+ | $BINARY mcp 2>/dev/null)
+
+mcp_check() {
+    # $1 = python assertion body, reading `msgs` (id -> message)
+    echo "$MCP_SESSION" | python3 -c "
+import json, sys
+msgs = {}
+for line in sys.stdin:
+    line = line.strip()
+    if not line:
+        continue
+    m = json.loads(line)          # every line must be one complete JSON object
+    assert m.get('jsonrpc') == '2.0', m
+    msgs[m.get('id')] = m
+$1
+" 2>/dev/null
+}
+
+echo "120. MCP: initialize returns a framed result identifying this server"
+if mcp_check "
+r = msgs[1]['result']
+assert 'protocolVersion' in r, r
+assert r['serverInfo']['name'] == 'openflix', r
+assert 'capabilities' in r, r
+"; then
+    pass "MCP initialize round-trip"
 else
-    fail "MCP initialize handler"
+    fail "MCP initialize round-trip (got: $(echo "$MCP_SESSION" | head -1 | head -c 200))"
 fi
 
-# ── 121. Round 6: MCP tools/list handler ────────────────
-echo "121. Round 6: MCP tools/list handler"
-if grep -q "handleToolsList" Sources/openflix/Core/MCPServer.swift; then
-    pass "MCP tools/list handler"
+echo "121. MCP: tools/list returns usable tool schemas"
+if mcp_check "
+tools = msgs[2]['result']['tools']
+assert len(tools) >= 15, len(tools)
+names = {t['name'] for t in tools}
+assert {'generate','generate_submit','project_run'} <= names, names
+for t in tools:
+    assert t['description'].strip(), t['name']
+    schema = t['inputSchema']
+    assert schema['type'] == 'object', t['name']
+    props = schema.get('properties', {})
+    for req in schema.get('required', []):
+        assert req in props, (t['name'], req)
+"; then
+    pass "MCP tools/list round-trip (money tools present, schemas valid)"
 else
-    fail "MCP tools/list handler"
+    fail "MCP tools/list round-trip"
 fi
 
-# ── 122. Round 6: MCP tools/call handler ────────────────
-echo "122. Round 6: MCP tools/call handler"
-if grep -q "handleToolsCall" Sources/openflix/Core/MCPServer.swift; then
-    pass "MCP tools/call handler"
+echo "122. MCP: tools/call refuses an unknown tool in-band, not as a crash"
+if mcp_check "
+r = msgs[5]['result']
+assert r['isError'] is True, r
+assert r['content'][0]['type'] == 'text', r
+assert 'not_a_tool' in r['content'][0]['text'], r
+"; then
+    pass "MCP tools/call unknown tool is an in-band isError result"
 else
-    fail "MCP tools/call handler"
+    fail "MCP tools/call unknown tool"
 fi
 
-# ── 123. Round 6: MCP resources/list handler ────────────
-echo "123. Round 6: MCP resources/list handler"
-if grep -q "handleResourcesList" Sources/openflix/Core/MCPServer.swift; then
-    pass "MCP resources/list handler"
+echo "123. MCP: resources/list and JSON-RPC error framing"
+if mcp_check "
+resources = msgs[3]['result']['resources']
+assert resources, 'no resources'
+for r in resources:
+    assert r['uri'].startswith('openflix://'), r
+    assert r['name'] and r['mimeType']
+# An unknown METHOD is a protocol error (-32601), unlike an unknown TOOL above.
+err = msgs[4]['error']
+assert err['code'] == -32601, err
+assert 'result' not in msgs[4], msgs[4]
+"; then
+    pass "MCP resources/list + methodNotFound framing"
 else
-    fail "MCP resources/list handler"
+    fail "MCP resources/list + methodNotFound framing"
 fi
 
 # ── 124. Round 6: MCP resources/read handler ────────────
@@ -2152,6 +2214,214 @@ else
     fail "unknown_reference validation (got: $refbad_out)"
 fi
 rm -f "$WF_REF" "$WF_REFBAD"
+
+# ══════════════════════════════════════════════════════════
+# Plan 06 · C2-2 — the cross-repo tripwire (phase 2, R22)
+# ══════════════════════════════════════════════════════════
+# The macOS app reads files THIS CLI writes, across a repo boundary that no
+# build, no type checker and no CI job spans:
+#
+#   OpenFlix/App/DeepLinkRoute.swift:374-376
+#       reads ~/.openflix/generations/<id>.json with JSONSerialization and the
+#       LITERAL string keys "status", "localPath", "remoteVideoURL".
+#   OpenFlix/Vortex/Services/CLIRunImporter.swift:22-38
+#       decodes ~/.openflix/runs/<id>.json into a mirrored Decodable whose
+#       runId / kind / name / nodes / nodeId / status fields are NON-optional,
+#       plus id / provider / model from the generation record.
+#
+# Both work only because these encoders emit camelCase — which is true only
+# because nothing sets keyEncodingStrategy. The day someone adds
+# .convertToSnakeCase "for consistency", or renames a field, the app's
+# openflix://generation/<id> deep link answers "no such generation" and
+# "Import CLI Run" answers "could not read the run journal". No error, no
+# crash, no failing test in either repo. Hence these.
+#
+# The deep version of this guard is a unit test that encodes a real record to
+# a real file and reads the bytes back the way the app does —
+# Tests/openflixTests/CrossRepoRecordContractTests.swift. What lives here is
+# the part that survives even if that file is deleted.
+
+echo "207. Cross-repo tripwire: on-disk records stay camelCase"
+if ! grep -rq "keyEncodingStrategy" Sources/; then
+    pass "no encoder sets keyEncodingStrategy (records stay camelCase)"
+else
+    fail "keyEncodingStrategy is set in Sources/ — the app's openflix://generation/<id> deep link and 'Import CLI Run' both break SILENTLY"
+fi
+
+echo "208. Cross-repo tripwire: the three keys the app's deep link reads"
+CLIGEN_BODY=$(awk '/^struct CLIGeneration/,/^}/' Sources/openflix/Core/Models.swift)
+MISSING_KEYS=""
+for field in "var status" "var localPath" "var remoteVideoURL" "var id" "var provider" "var model"; do
+    if ! echo "$CLIGEN_BODY" | grep -q "    $field"; then
+        MISSING_KEYS="$MISSING_KEYS $field"
+    fi
+done
+if [ -z "$MISSING_KEYS" ]; then
+    pass "CLIGeneration still declares id/status/provider/model/localPath/remoteVideoURL"
+else
+    fail "CLIGeneration renamed or dropped:$MISSING_KEYS — GenerationDeepLinkResolver reads these by name"
+fi
+
+echo "209. Cross-repo tripwire: no CodingKeys remap on CLIGeneration"
+# A CodingKeys enum renames keys on disk without touching a single property
+# name, so test 208 would still pass while the app stopped resolving links.
+if ! echo "$CLIGEN_BODY" | grep -q "enum CodingKeys"; then
+    pass "CLIGeneration has no CodingKeys remap"
+else
+    fail "CLIGeneration gained a CodingKeys enum — verify the app's DeepLinkRoute.swift still finds status/localPath/remoteVideoURL"
+fi
+
+echo "210. Cross-repo tripwire: run-journal keys the app importer decodes"
+JOURNAL_OK=1
+for field in "var runId" "var kind" "var name" "var nodes"; do
+    grep -q "    $field" Sources/openflix/Core/RunJournal.swift || JOURNAL_OK=0
+done
+for field in "var nodeId" "var status" "var generationId" "var outputPath"; do
+    grep -q "    $field" Sources/openflix/Core/RunJournal.swift || JOURNAL_OK=0
+done
+if [ "$JOURNAL_OK" -eq 1 ]; then
+    pass "RunRecord/NodeRecord still declare the fields CLIRunImporter mirrors"
+else
+    fail "run-journal field renamed — the app's 'Import CLI Run' can no longer decode the journal"
+fi
+
+echo "211. Cross-repo tripwire: dates stay ISO8601 on both record stores"
+if grep -q "dateEncodingStrategy = .iso8601" Sources/openflix/Core/GenerationStore.swift && \
+   grep -q "dateEncodingStrategy = .iso8601" Sources/openflix/Core/RunJournal.swift; then
+    pass "both record stores encode dates as ISO8601 (the app decodes with .iso8601)"
+else
+    fail "a record store stopped encoding ISO8601 dates — every app-side decode of it now throws"
+fi
+
+echo "212. Cross-repo tripwire: the record-contract unit test is still present"
+if [ -f Tests/openflixTests/CrossRepoRecordContractTests.swift ] && \
+   grep -q "DeepLinkRoute" Tests/openflixTests/CrossRepoRecordContractTests.swift && \
+   grep -q "CLIRunImporter" Tests/openflixTests/CrossRepoRecordContractTests.swift; then
+    pass "record-contract unit test present and still names both app readers"
+else
+    fail "CrossRepoRecordContractTests.swift missing — the only test that encodes a real record and reads it back the app's way"
+fi
+
+echo "213. Cross-repo tripwire: record paths the app hardcodes"
+if grep -q '"generations"' Sources/openflix/Core/GenerationStore.swift && \
+   grep -q '.openflix/runs' Sources/openflix/Core/RunJournal.swift; then
+    pass "records stay at ~/.openflix/generations and ~/.openflix/runs"
+else
+    fail "a record directory moved — the app hardcodes both paths"
+fi
+
+# ══════════════════════════════════════════════════════════
+# Plan 06 · C2-1 — command surface with no coverage at all
+# ══════════════════════════════════════════════════════════
+
+echo "214. Cost: summary is valid JSON with the documented totals"
+COST_OUT=$($BINARY cost 2>&1)
+if echo "$COST_OUT" | python3 -c "
+import json,sys
+d = json.load(sys.stdin)
+for k in ('total_generations','succeeded_generations','total_actual_cost_usd','total_estimated_cost_usd','by_provider'):
+    assert k in d, k
+assert isinstance(d['by_provider'], list)
+" 2>/dev/null; then
+    pass "cost emits the documented summary keys"
+else
+    fail "cost summary shape (got: $COST_OUT)"
+fi
+
+echo "215. Cost: --provider filter does not change the output shape"
+COST_FILTERED=$($BINARY cost --provider fal 2>&1)
+if echo "$COST_FILTERED" | python3 -c "
+import json,sys
+d = json.load(sys.stdin)
+assert 'total_actual_cost_usd' in d and isinstance(d['by_provider'], list)
+" 2>/dev/null; then
+    pass "cost --provider keeps the summary shape"
+else
+    fail "cost --provider (got: $COST_FILTERED)"
+fi
+
+echo "216. Keys: list reports every provider without ever printing a secret"
+KEYS_OUT=$($BINARY keys list 2>&1)
+if echo "$KEYS_OUT" | python3 -c "
+import json,sys
+rows = json.load(sys.stdin)
+assert isinstance(rows, list) and rows
+for r in rows:
+    assert 'provider' in r and 'has_key' in r
+    assert isinstance(r['has_key'], bool)
+    # A key value must never appear in list output, only its presence.
+    assert 'key' not in r and 'api_key' not in r
+providers = {r['provider'] for r in rows}
+assert {'fal','runway','luma','kling','minimax','replicate'} <= providers, providers
+" 2>/dev/null; then
+    pass "keys list reports presence only, for every provider"
+else
+    fail "keys list shape (got: $KEYS_OUT)"
+fi
+
+echo "217. Keys: the keyless local provider is marked keyless, not missing"
+if echo "$KEYS_OUT" | python3 -c "
+import json,sys
+rows = json.load(sys.stdin)
+local = [r for r in rows if r['provider'] == 'local']
+assert local and local[0].get('keyless') is True, rows
+" 2>/dev/null; then
+    pass "local provider advertises keyless"
+else
+    fail "local provider keyless flag (got: $KEYS_OUT)"
+fi
+
+echo "218. Download: an unknown generation is a structured not_found, not a crash"
+DL_OUT=$($BINARY download openflix-test-definitely-not-a-generation 2>&1 || true)
+if echo "$DL_OUT" | grep -q '"code":"not_found"'; then
+    pass "download emits structured not_found for an unknown id"
+else
+    fail "download unknown id (got: $DL_OUT)"
+fi
+
+echo "219. Delete/cancel/retry: unknown ids refuse structurally rather than trapping"
+SURFACE_OK=1
+for cmd in delete cancel retry download; do
+    out=$($BINARY $cmd openflix-test-definitely-not-a-generation 2>&1 || true)
+    echo "$out" | grep -q '"code":' || SURFACE_OK=0
+done
+if [ "$SURFACE_OK" -eq 1 ]; then
+    pass "delete/cancel/retry/download all emit a structured error code"
+else
+    fail "a generation-id command failed unstructurally on an unknown id"
+fi
+
+echo "220. Every command's --help renders (no ArgumentParser configuration trap)"
+HELP_OK=1
+HELP_BAD=""
+for cmd in batch budget cancel compare cost daemon delete download evaluate \
+           feedback generate health keys list mcp metrics project providers \
+           purge quickstart recipe retry status vote workflow; do
+    if ! $BINARY $cmd --help >/dev/null 2>&1; then
+        HELP_OK=0
+        HELP_BAD="$HELP_BAD $cmd"
+    fi
+done
+if [ "$HELP_OK" -eq 1 ]; then
+    pass "all 25 top-level commands render --help"
+else
+    fail "--help failed for:$HELP_BAD"
+fi
+
+echo "221. Providers: catalog is JSON and every model carries an id"
+PROV_OUT=$($BINARY providers 2>&1)
+if echo "$PROV_OUT" | python3 -c "
+import json,sys
+d = json.load(sys.stdin)
+rows = d if isinstance(d, list) else d.get('providers', [])
+assert rows, 'no providers listed'
+for p in rows:
+    assert p.get('id') or p.get('provider'), p
+" 2>/dev/null; then
+    pass "providers catalog parses with an id on every entry"
+else
+    fail "providers catalog shape (got: $(echo "$PROV_OUT" | head -c 200))"
+fi
 
 # ── Summary ─────────────────────────────────────────────
 echo ""

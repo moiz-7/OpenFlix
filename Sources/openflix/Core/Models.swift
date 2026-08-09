@@ -94,6 +94,11 @@ enum OpenFlixError: Error, LocalizedError {
     case promptBlocked([String])
     case cancelNotSupported(String)
     case hookVeto(String)
+    /// A request that is invalid on its face — refused before anything is
+    /// billed. `generate` reports the same `invalid_input` code from its flag
+    /// parser; this is the same refusal for the batch / recipe / project /
+    /// workflow / MCP paths, which reach the engine without flag validation.
+    case invalidInput(String)
 
     var errorDescription: String? {
         switch self {
@@ -113,6 +118,7 @@ enum OpenFlixError: Error, LocalizedError {
         case .promptBlocked(let flags):   return "Prompt blocked: \(flags.joined(separator: ", "))"
         case .cancelNotSupported(let p):  return "cancel not supported by \(p)"
         case .hookVeto(let detail):       return "Generation vetoed by pre-generate hook: \(detail)"
+        case .invalidInput(let m):        return m
         }
     }
 
@@ -132,6 +138,7 @@ enum OpenFlixError: Error, LocalizedError {
         case .promptBlocked:     return "prompt_blocked"
         case .cancelNotSupported: return "cancel_not_supported"
         case .hookVeto:          return "hook_veto"
+        case .invalidInput:      return "invalid_input"
         }
     }
 
@@ -266,6 +273,9 @@ struct StructuredError: Codable {
         case .hookVeto(let detail):
             return StructuredError(code: .hookVeto, message: error.errorDescription ?? "",
                                    details: ["hook_stderr": .string(detail)], retryable: false, retryAfterSeconds: nil)
+        case .invalidInput(let m):
+            return StructuredError(code: .inputInvalid, message: m,
+                                   details: nil, retryable: false, retryAfterSeconds: nil)
         }
     }
 

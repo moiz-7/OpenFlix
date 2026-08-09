@@ -43,6 +43,17 @@ struct OpenFlix: AsyncParsableCommand {
 
           Legacy VORTEX_*_KEY variables are still supported as fallback.
 
+        LOGGING (never written to stdout — stdout is reserved for JSON output)
+          OPENFLIX_LOG_LEVEL     debug | info | warn | error | off  (default: info)
+          OPENFLIX_LOG_FILE      JSONL log path ('none' disables the file)
+                                 default: ~/.openflix/logs/openflix.log
+          OPENFLIX_LOG_STDERR    set to 1 to mirror log lines to stderr
+
+          Every submission, terminal status, budget refusal, hook veto and
+          provider failure is recorded. API keys are never logged and prompts
+          are recorded as a digest, not as text. Also queryable live with:
+            log stream --predicate 'subsystem == "com.openflix.cli"'
+
         MULTI-SHOT PROJECTS
           openflix project create --file spec.json
           openflix project run <project-id> --stream
