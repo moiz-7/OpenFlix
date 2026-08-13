@@ -6,8 +6,7 @@ class Openflix < Formula
   license :cannot_represent # proprietary — see LICENSE in the repo
   version "__VERSION__"
 
-  depends_on :macos
-  depends_on macos: :sonoma # macOS 14+
+  depends_on macos: :sonoma # macOS 14+; this alone implies macOS-only
   # No `depends_on arch:` — the release binary is universal (arm64 + x86_64).
   # v1.0.0 was arm64-only with no guard, so Intel Macs installed a binary that
   # could not execute; the release workflow now verifies both slices exist.
