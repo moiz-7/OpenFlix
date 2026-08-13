@@ -2,7 +2,7 @@
 
 All notable changes to the `openflix` CLI. Format loosely follows [Keep a Changelog](https://keepachangelog.com); versions are git tags (`v*`), which the release workflow verifies against the binary's reported version.
 
-## [1.1.0] — 2026-08-08
+## [1.1.0] — 2026-08-13
 
 **1.0.2 was tagged in code but never released** — `Version.swift` said `1.0.2`,
 no `v1.0.2` tag was ever pushed, and Homebrew continued serving 1.0.1. So this

@@ -16,6 +16,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Public surface
+        # This repo is public. Runs before the build because it needs no
+        # toolchain and a leak should be reported in seconds, not after a
+        # 30-minute macOS build.
+        run: bash scripts/public_surface_lint.sh
+
       - name: Select newest Xcode
         # Package.resolved pins swift-argument-parser 1.7.0, which needs a
         # recent Swift; the image's *default* Xcode lags. Pick the newest
