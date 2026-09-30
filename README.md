@@ -152,6 +152,8 @@ openflix budget                     Manage spending limits
 openflix mcp                        Run as an MCP server for AI agents (see docs/mcp-quickstart.md)
 openflix action list                Print every agent action: JSON Schema, effect, MCP annotations
 openflix action run <name> --input '{...}'   Run one action, JSON in, one JSON result out
+openflix agents grant <name> --effects read,refresh   Give an agent on another machine a token
+openflix serve                      HTTP bridge for agents on other machines (see docs/agent-bridge.md)
 ```
 
 ## Providers

@@ -55,6 +55,8 @@ enum CLIActions {
     /// Any error an action can throw, in the envelope's terms.
     static func failure(from error: Error) -> ActionFailure {
         switch error {
+        case let failure as ActionFailure:
+            return failure
         case let input as ActionInputError:
             return ActionFailure(input)
         case let refusal as MCPToolRefusal:
@@ -69,6 +71,13 @@ enum CLIActions {
                                  message: structured.message,
                                  retryable: structured.retryable,
                                  details: structured.details.map { JSONValue(.dictionary($0)) })
+        case let network as URLError:
+            // A provider (or a local server like ComfyUI) that could not be
+            // reached is the world failing, not this code — and it is worth
+            // retrying once it is back.
+            return ActionFailure(code: "NETWORK_ERROR", errorClass: .upstream,
+                                 message: network.localizedDescription, retryable: true,
+                                 details: .object(["url_error_code": .int(network.code.rawValue)]))
         default:
             return ActionFailure(code: ErrorCode.internalError.rawValue, errorClass: .internal,
                                  message: error.localizedDescription)

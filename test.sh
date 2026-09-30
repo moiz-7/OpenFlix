@@ -2398,16 +2398,16 @@ fi
 echo "220. Every command's --help renders (no ArgumentParser configuration trap)"
 HELP_OK=1
 HELP_BAD=""
-for cmd in batch budget cancel compare cost daemon delete download evaluate \
+for cmd in action agents batch budget cancel compare cost daemon delete download evaluate \
            feedback generate health keys list mcp metrics project providers \
-           purge quickstart recipe retry status vote workflow; do
+           purge quickstart recipe retry serve status vote workflow; do
     if ! $BINARY $cmd --help >/dev/null 2>&1; then
         HELP_OK=0
         HELP_BAD="$HELP_BAD $cmd"
     fi
 done
 if [ "$HELP_OK" -eq 1 ]; then
-    pass "all 25 top-level commands render --help"
+    pass "all 28 top-level commands render --help"
 else
     fail "--help failed for:$HELP_BAD"
 fi

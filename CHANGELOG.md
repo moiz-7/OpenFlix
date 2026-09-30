@@ -5,6 +5,20 @@ All notable changes to the `openflix` CLI. Format loosely follows [Keep a Change
 ## [Unreleased]
 
 ### Added
+- **An HTTP bridge for agents on other machines: `openflix serve`.** Listens on
+  127.0.0.1 only; put Tailscale Serve in front of it to reach it from your
+  tailnet. Serves the action manifest and every action through the same door
+  as `openflix mcp`, and relays the running app's library and player tools
+  over the app's own socket (the app's own access setting still applies).
+  See `docs/agent-bridge.md`.
+- **`openflix agents grant | list | revoke`.** Per-agent bearer tokens (only a
+  hash is stored), limited by effect (`read`, `control`, `spend`, …) and, for
+  spending, by a daily USD cap.
+- **Spending over the bridge is quote → approve → run once.** `:preflight`
+  returns a single-use `op_hash` bound to the agent and the exact arguments
+  (smart routing resolved), the cap is checked at quote and again at run, and
+  an `Idempotency-Key` makes a retry replay rather than bill twice. Only
+  `generate_submit` and `retry_generation` are available to remote agents.
 - **`openflix action list` / `openflix action run`.** Every MCP tool, callable
   from a shell with JSON in and one JSON document out, for agents that wrap
   CLIs instead of speaking MCP. `list` prints the manifest
