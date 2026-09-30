@@ -437,9 +437,23 @@ final class MCPProjectRunTests: XCTestCase {
 
     /// A ceiling that is not a number is not a ceiling. `spend >= NaN` is false,
     /// so accepting one would mean "unlimited" while looking like a limit.
+    ///
+    /// A non-finite value is now stopped one door earlier, by argument
+    /// validation (`CLIActions.run`), before the tool runs at all; a finite
+    /// non-positive one still reaches the tool's own ceiling rule. Either way
+    /// it is refused and nothing is dispatched — which is the property.
     func testANonNumericCeilingIsRefusedRatherThanTreatedAsUnlimited() async throws {
         save(pricedProject())
-        for ceiling in [Double.nan, .infinity, 0, -5] {
+        for ceiling in [Double.nan, .infinity] {
+            let result = try await callProjectRun([
+                "project_id": .string(projectId),
+                "confirm": .bool(true),
+                "max_cost_usd": .double(ceiling),
+            ])
+            XCTAssertTrue(result.isError, "ceiling \(ceiling)")
+            XCTAssertEqual(result.string("code"), "INPUT_INVALID", "ceiling \(ceiling)")
+        }
+        for ceiling in [0.0, -5] {
             let result = try await callProjectRun([
                 "project_id": .string(projectId),
                 "confirm": .bool(true),

@@ -2,6 +2,34 @@
 
 All notable changes to the `openflix` CLI. Format loosely follows [Keep a Changelog](https://keepachangelog.com); versions are git tags (`v*`), which the release workflow verifies against the binary's reported version.
 
+## [Unreleased]
+
+### Added
+- **`openflix action list` / `openflix action run`.** Every MCP tool, callable
+  from a shell with JSON in and one JSON document out, for agents that wrap
+  CLIs instead of speaking MCP. `list` prints the manifest
+  (`openflix.action_manifest.v1`): each action's JSON Schema, its effect
+  (`read`, `spend`, `share`, …) and the MCP annotations derived from it. `run`
+  prints a result envelope (`openflix.action_result.v1`) and exits 0 / 2
+  (refused — nothing attempted) / 1 (failed).
+
+### Changed
+- **One door for every tool.** The MCP server and `openflix action run` call
+  the same action core, which validates arguments against each tool's schema
+  before it runs. Schemas are closed: an unknown argument is now refused
+  (`INPUT_INVALID`) instead of ignored — `generate` with `duration` used to
+  bill the default duration. `max_retries` is capped at 10, `limit` at 1000.
+- **`submit_vote` requires `origin`.** The community pool is human preference,
+  so an agent must say whose choice it is relaying: `owner_relayed` is shared;
+  `agent_judgment` (the agent's own opinion) and a missing origin are refused.
+- **`evaluate_quality` is annotated `destructiveHint: true`.** Its `llm-vision`
+  evaluator bills the user's model account; like `project_run`, the annotation
+  covers the worst case.
+
+### Fixed
+- `list_generations` with a negative `limit` aborted the MCP server process
+  (`Array.prefix` traps on a negative length). It is now refused.
+
 ## [1.1.0] — 2026-08-13
 
 **1.0.2 was tagged in code but never released** — `Version.swift` said `1.0.2`,

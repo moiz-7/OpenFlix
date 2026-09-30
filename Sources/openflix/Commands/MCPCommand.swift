@@ -33,10 +33,17 @@ struct MCP: AsyncParsableCommand {
           budget_status, project_run, health_check
 
         Every tool is annotated, so a client can tell a local read from a call
-        that spends money before it makes it: generate, generate_submit,
-        retry_generation and cancel_generation are readOnlyHint:false +
-        destructiveHint:true; list_providers, get_metrics, budget_status and the
-        other reads are readOnlyHint:true + openWorldHint:false.
+        that spends money before it makes it. The annotations are derived from
+        each action's declared effect: everything that spends (generate,
+        generate_submit, retry_generation, project_run, evaluate_quality) and
+        cancel_generation are readOnlyHint:false + destructiveHint:true;
+        list_providers, get_metrics, budget_status and the other reads are
+        readOnlyHint:true + openWorldHint:false. `openflix action list` prints
+        the same catalog with each action's effect.
+
+        Arguments are validated against each tool's inputSchema before it runs.
+        Unknown arguments are refused (a misspelled duration on a paid call is
+        an error, not a silently billed default), as are out-of-range values.
 
         generate/generate_submit accept route:"smart" (+ optional category)
         instead of provider+model to auto-select by community win rate.

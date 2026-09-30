@@ -82,3 +82,40 @@ enum PreferenceVoteClient {
         return Result(accepted: response.accepted, duplicatesIgnored: response.duplicatesIgnored)
     }
 }
+
+/// Who made the choice a vote records, when the vote arrives from an agent.
+///
+/// The community pool is **human** preference: smart routing reads it back as
+/// "what people chose", so a model's own opinion of two videos must never land
+/// there: machine judgments never enter the human vote pool.
+/// An agent can only tell us which case it is in, so the MCP tool makes it say
+/// so rather than letting every agent vote count as a person's.
+enum VoteOrigin: String, CaseIterable {
+    /// The agent is passing on a choice the user made ("I like the left one").
+    case ownerRelayed = "owner_relayed"
+    /// The agent's own judgment. Never shared.
+    case agentJudgment = "agent_judgment"
+
+    /// The registry `context` this origin is shared under, so relayed votes
+    /// stay separable from ones cast directly at `openflix vote`.
+    var registryContext: String { "mcp:\(rawValue)" }
+
+    /// Parses an agent's `origin` argument and refuses anything that is not the
+    /// user's own choice. Runs before any lookup, so a refused vote touches
+    /// nothing.
+    static func requireShareable(_ raw: String?) throws -> VoteOrigin {
+        guard let raw else {
+            throw OpenFlixError.invalidInput(
+                "origin is required: \"owner_relayed\" if the user chose the winner, \"agent_judgment\" if you did")
+        }
+        guard let origin = VoteOrigin(rawValue: raw) else {
+            throw OpenFlixError.invalidInput(
+                "origin must be \"owner_relayed\" or \"agent_judgment\", got \"\(raw)\"")
+        }
+        guard origin == .ownerRelayed else {
+            throw OpenFlixError.invalidInput(
+                "An agent's own judgment is not shared: the community pool records human preference only. Ask the user which one they prefer, then vote with origin \"owner_relayed\".")
+        }
+        return origin
+    }
+}

@@ -134,7 +134,7 @@ The direction that matters is *not* "declare everything false":
 | **`project_run`** | false | **true** | false | true |
 | `cancel_generation` | false | **true** | false | true |
 | `generate_poll` | false | false | true | true |
-| `evaluate_quality` | false | false | false | true |
+| `evaluate_quality` | false | **true** | false | true |
 | `submit_vote` | false | false | true | true |
 | `submit_feedback` | false | false | false | **false** |
 | `list_generations`, `get_generation`, `list_providers`, `get_metrics`, `budget_status`, `health_check` | **true** | — | — | **false** |
@@ -151,12 +151,49 @@ knows what arguments will be passed, so the only honest hint is the tool's
 it because "most calls are safe" would make the tool that can spend the most on
 this server the least guarded one.
 
+`evaluate_quality` is marked destructive for the same reason: its `llm-vision`
+evaluator bills the user's model account, and the annotation has to cover the
+call the client cannot yet see.
+
 `destructiveHint` and `idempotentHint` are meaningful only when `readOnlyHint` is
 false, so read-only tools do not ship them at all.
+
+These annotations are not written per tool. Each tool is an action in one
+catalog that declares its **effect** — `read`, `refresh`, `control`,
+`local_write`, `destructive`, `spend` or `share` — and the four hints are
+derived from it, so a tool that spends cannot be annotated as anything but
+destructive. `openflix action list` prints the same catalog, effect included.
+
+### Argument validation
+
+Every `tools/call` is checked against the tool's `inputSchema` before the tool
+runs, and the schemas are closed (`additionalProperties: false`). A call that
+fails the check does nothing and returns `isError: true` with
+`{"code": "INPUT_INVALID", "message": …, "details": {"argument": …}}`:
+
+- an **unknown argument** is refused, with the accepted names in the message —
+  `generate` with `duration` instead of `duration_seconds` used to be accepted
+  and billed at the default duration;
+- a **missing required argument** is refused, with that argument's description;
+- **wrong types, values outside an `enum`, and out-of-range numbers** are refused
+  (`list_generations` `limit` must be 0-1000 — a negative limit used to abort
+  the server process; `max_retries` is 0-10, since every retry is billed).
+
+`openflix action run <tool> --input '{…}'` runs the same tools through the same
+check from a shell, and prints one result envelope
+(`openflix.action_result.v1`: `status` is `ok`, `refused` — nothing was
+attempted — or `failed`).
 
 `submit_feedback` is `openWorldHint: false` and `submit_vote` is
 `openWorldHint: true` — the wire now says which of the two leaves the machine,
 which is the whole difference between them.
+
+`submit_vote` also requires `origin`. The community pool is read back by smart
+routing as **human** preference, so an agent must say whose choice it is
+passing on: `"owner_relayed"` (the user picked the winner) is shared under the
+registry context `mcp:owner_relayed`; `"agent_judgment"` (the agent's own
+opinion) is refused with `INPUT_INVALID` before any lookup or network call, and
+so is a missing origin — it never defaults to human.
 
 ## `project_run` — the one tool that spends across a whole graph
 

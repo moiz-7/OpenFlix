@@ -1126,14 +1126,16 @@ else
     fail "MCPServer actor defined"
 fi
 
-# ── 117. Round 6: MCPToolRegistry has 15 tools ──────────
-# (14 from Round 6 + submit_vote from the flywheel wiring)
-echo "117. Round 6: MCPToolRegistry has 15 tools"
-tool_count=$(grep -c "MCPToolDefinition(" Sources/openflix/Core/MCPToolRegistry.swift)
-if [ "$tool_count" -eq 15 ]; then
-    pass "MCPToolRegistry has 15 tools"
+# ── 117. Round 6: 15 actions, counted from the manifest ──
+# (14 from Round 6 + submit_vote from the flywheel wiring). Counted from what
+# the binary actually offers — the MCP tool list is derived from the same
+# catalog — rather than by grepping a source file for a constructor name.
+echo "117. Round 6: action manifest has 15 actions"
+tool_count=$($BINARY action list 2>/dev/null | python3 -c 'import json,sys; print(len(json.load(sys.stdin)["actions"]))' 2>/dev/null)
+if [ "$tool_count" = "15" ]; then
+    pass "action manifest has 15 actions"
 else
-    fail "MCPToolRegistry has 15 tools (got $tool_count)"
+    fail "action manifest has 15 actions (got $tool_count)"
 fi
 
 # ── 118. Round 6: MCPToolRegistry has 3 resources ───────
@@ -1932,7 +1934,9 @@ fi
 
 # ── 187. MCP cancel routes through provider path ───────
 echo "187. MCP: cancel_generation uses CancelService"
-if grep -q "CancelService.attemptRemoteCancel" Sources/openflix/Core/MCPServer.swift && \
+# The MCP tool handlers live in the action core since MCP and `openflix action`
+# share one door (CLIActions.run).
+if grep -q "CancelService.attemptRemoteCancel" Sources/openflix/Actions/CLIActions.swift && \
    grep -q "CancelService.attemptRemoteCancel" Sources/openflix/Commands/CancelCommand.swift; then
     pass "MCP cancel routes through shared provider cancel path"
 else

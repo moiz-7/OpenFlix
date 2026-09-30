@@ -150,6 +150,8 @@ openflix health                     Check provider status
 openflix cost                       Show cost breakdown
 openflix budget                     Manage spending limits
 openflix mcp                        Run as an MCP server for AI agents (see docs/mcp-quickstart.md)
+openflix action list                Print every agent action: JSON Schema, effect, MCP annotations
+openflix action run <name> --input '{...}'   Run one action, JSON in, one JSON result out
 ```
 
 ## Providers

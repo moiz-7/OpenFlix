@@ -73,7 +73,7 @@ Claude Desktop (`claude_desktop_config.json`) or `.claude.json`:
 | `list_providers` | List the 7 providers and their models. |
 | `evaluate_quality` | Score a downloaded video (0-100 heuristic quality gate). |
 | `submit_feedback` | **Local-only** quality note on one generation — never leaves the machine. |
-| `submit_vote` | **Share a pairwise preference vote with the community** (winner beat loser) — feeds `--route smart` for everyone. Only provider/model names + optional category are sent; deduplicated server-side, safe to retry. |
+| `submit_vote` | **Share the user's pairwise preference with the community** (winner beat loser) — feeds `--route smart` for everyone. Requires `origin`: `"owner_relayed"` when the user chose the winner; `"agent_judgment"` (the agent's own opinion) is refused, because the pool is human preference only. Only provider/model names + optional category are sent; deduplicated server-side, safe to retry. |
 | `get_metrics` | Provider performance metrics (quality, latency, cost, success rate). |
 | `budget_status` | Current spend vs. daily/per-generation/monthly limits. |
 | `project_run` | **Run a multi-shot project's DAG — spends money once per shot.** Called with only `project_id` it spends nothing and returns a cost plan (per-shot provider/model, total estimate, which shots would be refused locally, current budget). Executing needs `confirm: true` **and** `max_cost_usd`, which is enforced both before submission and as a live budget gate during the run. See [`mcp-protocol.md`](mcp-protocol.md). |
@@ -117,9 +117,10 @@ category-aware routing:
 {"prompt": "golden hour city skyline, slow dolly", "route": "smart", "category": "cinematic"}
 ```
 
-Close the loop: after comparing two generations, have the agent call
-`submit_vote` with the winner and loser ids — that vote is the data smart
-routing reads back.
+Close the loop: after comparing two generations, have the agent ask **you**
+which one you prefer, then call `submit_vote` with the winner and loser ids and
+`"origin": "owner_relayed"` — that vote is the data smart routing reads back.
+An agent's own judgment is never shared: the community pool is human preference.
 
 ## Feedback vs. vote
 
