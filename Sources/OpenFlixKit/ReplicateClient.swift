@@ -4,54 +4,34 @@ public final class ReplicateClient: VideoProvider {
     public let providerId = "replicate"
     public let displayName = "Replicate"
 
-    public let models: [CLIProviderModel] = [
-        .priced(providerId: "replicate", providerName: "Replicate",
-            modelId: "minimax/video-01-live", displayName: "MiniMax Video-01 Live",
-            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 6, supportsImageToVideo: false),
-        .priced(providerId: "replicate", providerName: "Replicate",
-            modelId: "tencent/hunyuan-video", displayName: "Hunyuan Video",
-            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 5, supportsImageToVideo: false),
-        .priced(providerId: "replicate", providerName: "Replicate",
-            modelId: "wavespeed-ai/wan-2.1", displayName: "Wan 2.1",
-            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 5, supportsImageToVideo: false),
-        // `supportsImageToVideo` was `true`, and this client **never sends an
-        // image** — every other provider that claims the capability populates a
-        // field for it (`image`, `keyframes`, `first_frame_image`,
-        // `promptImage`); this one has none. So a user who attached a reference
-        // image had it silently discarded and was billed for a text-to-video
-        // generation that ignored their input.
-        //
-        // Turned off rather than implemented: Replicate's `input` schema is
-        // per-model, so the start-frame key differs by model and there is
-        // nothing here or in the app to derive it from. Advertising a capability
-        // we cannot deliver is the worse of the two errors. (The model id is
-        // separately suspect — Replicate's publisher is `kwaivgi`, not `kwaai`.)
-        .priced(providerId: "replicate", providerName: "Replicate",
-            modelId: "kwaai/kling-v1.6-pro", displayName: "Kling v1.6 Pro",
-            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 10, supportsImageToVideo: false),
-    ]
+    /// From `VideoModelCatalog`: every slug checked live on 2026-09-27.
+    /// `wavespeed-ai/wan-2.1` and `kwaai/kling-v1.6-pro` no longer existed,
+    /// and `minimax/video-01-live` REQUIRES an image — it was listed as
+    /// text-to-video, so every call to it failed.
+    public let models: [CLIProviderModel] = CLIProviderModel.catalog(provider: "replicate", providerName: "Replicate")
 
     private let session = makeSession()
 
     public init() {}
 
     public func submit(request: GenerationRequest, apiKey: String) async throws -> GenerationSubmission {
-        var input: [String: Any] = ["prompt": request.prompt]
-        if let v = request.negativePrompt, !v.isEmpty { input["negative_prompt"] = v }
-        if let w = request.width    { input["width"] = w }
-        if let h = request.height   { input["height"] = h }
-        if let d = request.durationSeconds, d.isFinite, d > 0 {
-            // Int(Double) traps on NaN/inf/overflow; workflow & MCP paths don't
-            // pre-validate duration the way `generate` does. Clamp defensively.
-            input["num_frames"] = Int((min(d, 60) * 8).rounded())
-        }
+        // Field names differ per model (duration vs seconds; image vs
+        // start_image vs input_reference) — `ReplicateWire` takes them from
+        // each model's schema. The old body sent width/height/num_frames,
+        // which none of the current models accept.
+        let input = WireInput(prompt: request.prompt, negativePrompt: request.negativePrompt,
+                              image: request.referenceImageURL, durationSeconds: request.durationSeconds,
+                              aspectRatio: request.aspectRatio, width: request.width, height: request.height,
+                              extra: request.extraParams)
+        let plan: WirePlan
+        do { plan = try ReplicateWire.plan(model: request.model, input: input) }
+        catch let e as WireError { throw ProviderError.invalidResponse(e.errorDescription ?? "\(e)") }
 
-        let route = try Self.submitRoute(model: request.model, input: input)
-        var urlReq = URLRequest(url: route.url)
+        var urlReq = URLRequest(url: plan.url)
         urlReq.httpMethod = "POST"
         urlReq.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         urlReq.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        urlReq.httpBody = try JSONSerialization.data(withJSONObject: route.body)
+        urlReq.httpBody = try JSONSerialization.data(withJSONObject: plan.body)
 
         let (data, _) = try await session.jsonData(for: urlReq)
         let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
@@ -63,7 +43,11 @@ public final class ReplicateClient: VideoProvider {
         return GenerationSubmission(
             remoteTaskId: taskId,
             statusURL: URL(string: getURL),
-            estimatedCostUSD: estimateCost(durationSeconds: request.durationSeconds ?? 4, modelId: request.model)
+            estimatedCostUSD: {
+                let hints = ModelPricing.pricingHints(from: request.extraParams)
+                return ModelPricing.estimate(durationSeconds: request.durationSeconds ?? 5, modelId: request.model,
+                                             providerId: providerId, resolution: hints.resolution, audio: hints.audio)
+            }()
         )
     }
 

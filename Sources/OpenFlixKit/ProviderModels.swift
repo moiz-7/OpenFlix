@@ -12,12 +12,21 @@ public struct CLIProviderModel: Codable {
     public let maxDurationSeconds: Double?
     public let costPerSecondUSD: Double?
     public let supportsImageToVideo: Bool
+    /// False for models that need an image (Runway gen4_turbo, Replicate
+    /// video-01-live). Routers must not pick these for a text-only prompt:
+    /// the provider rejects the request, after the user waited for it.
+    public let supportsTextToVideo: Bool
+    /// The seconds the provider accepts, when known. Requests are rounded up
+    /// to the next accepted value (see `VideoModelSpec.billedSeconds`).
+    public let allowedDurations: [Int]?
 
     public init(providerId: String, providerName: String,
                 modelId: String, displayName: String,
                 defaultWidth: Int?, defaultHeight: Int?,
                 maxDurationSeconds: Double?, costPerSecondUSD: Double?,
-                supportsImageToVideo: Bool) {
+                supportsImageToVideo: Bool,
+                supportsTextToVideo: Bool = true,
+                allowedDurations: [Int]? = nil) {
         self.providerId = providerId
         self.providerName = providerName
         self.modelId = modelId
@@ -27,6 +36,8 @@ public struct CLIProviderModel: Codable {
         self.maxDurationSeconds = maxDurationSeconds
         self.costPerSecondUSD = costPerSecondUSD
         self.supportsImageToVideo = supportsImageToVideo
+        self.supportsTextToVideo = supportsTextToVideo
+        self.allowedDurations = allowedDurations
     }
 
     public var jsonRepresentation: [String: Any] {
@@ -36,7 +47,9 @@ public struct CLIProviderModel: Codable {
             "model_id":      modelId,
             "display_name":  displayName,
             "supports_i2v":  supportsImageToVideo,
+            "supports_t2v":  supportsTextToVideo,
         ]
+        if let v = allowedDurations     { d["allowed_durations"]       = v }
         if let v = defaultWidth         { d["default_width"]           = v }
         if let v = defaultHeight        { d["default_height"]          = v }
         if let v = maxDurationSeconds   { d["max_duration_seconds"]    = v }

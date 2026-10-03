@@ -21,9 +21,13 @@ struct ProviderRouter {
         // Filter to available providers
         var candidates = allModels.filter { availableProviders.contains($0.providerId) }
 
-        // Capability filter: I2V
+        // Capability filter: I2V, and the reverse — a model that NEEDS an
+        // image (Runway gen4_turbo, Replicate video-01-live) can't take a
+        // text-only shot; routing there only defers a provider refusal.
         if shot.referenceImageURL != nil {
             candidates = candidates.filter { $0.supportsImageToVideo }
+        } else {
+            candidates = candidates.filter { $0.supportsTextToVideo }
         }
 
         // Capability filter: duration
@@ -121,6 +125,8 @@ struct ProviderRouter {
 
         if shot.referenceImageURL != nil {
             candidates = candidates.filter { $0.supportsImageToVideo }
+        } else {
+            candidates = candidates.filter { $0.supportsTextToVideo }
         }
         if let d = shot.duration {
             // A duration the engine will refuse has no viable target at all.

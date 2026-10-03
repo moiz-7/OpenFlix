@@ -1,104 +1,42 @@
 import Foundation
 import OpenFlixKit
 
+/// Kling's "new standard" API (kling.ai/document-api, verified 2026-09-27).
+///
+/// The previous client posted to `/v1/videos/text_to_video` with a `model`
+/// field — a path that exists in neither of Kling's API standards, so every
+/// call failed. The long-standing note that Kling "needs a signed JWT" was also
+/// out of date: the new standard authenticates with a plain API key as a bearer
+/// token, and puts the model in the path (`POST /text-to-video/kling-2.6`).
+/// AK/SK JWTs apply only to the legacy `model_name` endpoints, which new
+/// endpoints reject with 401/1002. Request shapes live in `KlingWire`.
 final class KlingClient: VideoProvider {
     let providerId = "kling"
     let displayName = "Kling"
 
-    let models: [CLIProviderModel] = [
-        .priced(providerId: "kling", providerName: "Kling",
-            modelId: "kling-v2.6-pro", displayName: "Kling v2.6 Pro",
-            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 10, supportsImageToVideo: true),
-        .priced(providerId: "kling", providerName: "Kling",
-            modelId: "kling-v2.6-std", displayName: "Kling v2.6 Standard",
-            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 10, supportsImageToVideo: true),
-        .priced(providerId: "kling", providerName: "Kling",
-            modelId: "kling-v2.5-turbo", displayName: "Kling v2.5 Turbo",
-            defaultWidth: 1280, defaultHeight: 720, maxDurationSeconds: 5, supportsImageToVideo: true),
-    ]
+    let models: [CLIProviderModel] = CLIProviderModel.catalog(provider: "kling", providerName: "Kling")
 
     private let session = makeSession()
 
-    /// `api.klingapi.com` is not Kling's documented host — the official
-    /// endpoints are on `api-singapore.klingai.com` (regional). Kling also
-    /// authenticates with a signed JWT derived from an access-key/secret pair,
-    /// NOT a bare bearer token, so this integration needs a live smoke test
-    /// before it can be trusted (see PROJECT_ASSESSMENT §5). Base URL is
-    /// overridable so the region can be selected without a release.
-    static let defaultBase = "https://api-singapore.klingai.com/v1"
-    private static let base: URL = {
-        let raw = ProcessInfo.processInfo.environment["OPENFLIX_KLING_BASE_URL"] ?? defaultBase
-        guard let url = URL(string: raw) else {
-            guard let fallback = URL(string: defaultBase) else {
-                fatalError("Invalid static Kling API URL")
-            }
-            fputs("{\"warning\":\"Invalid OPENFLIX_KLING_BASE_URL, using default\",\"code\":\"invalid_base_url\"}\n", stderr)
-            return fallback
-        }
-        return url
-    }()
-    private var base: URL { Self.base }
+    static var base: URL {
+        ProcessInfo.processInfo.environment["OPENFLIX_KLING_BASE_URL"].flatMap(URL.init(string:))
+            ?? KlingWire.defaultBase
+    }
 
     func submit(request: GenerationRequest, apiKey: String) async throws -> GenerationSubmission {
-        let endpoint = request.referenceImageURL != nil ? "image_to_video" : "text_to_video"
-        var body: [String: Any] = [
-            "model": request.model,
-            "prompt": request.prompt,
-        ]
-        if let d = request.durationInt() { body["duration"] = d }
-        if let ar = request.aspectRatio { body["aspect_ratio"] = ar }
-        if let ref = request.referenceImageURL { body["image"] = ref.absoluteString }
-        if let v = request.negativePrompt, !v.isEmpty { body["negative_prompt"] = v }
-
-        var urlReq = URLRequest(url: base.appendingPathComponent("videos/\(endpoint)"))
-        urlReq.httpMethod = "POST"
-        urlReq.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        urlReq.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        urlReq.httpBody = try JSONSerialization.data(withJSONObject: body)
-
-        let (data, _) = try await session.jsonData(for: urlReq)
-        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        guard let code = json?["code"] as? Int, code == 0,
-              let taskData = json?["data"] as? [String: Any],
-              let taskId = taskData["task_id"] as? String else {
-            let msg = (json?["message"] as? String) ?? "Unknown Kling error"
-            throw OpenFlixError.invalidResponse("Kling: \(msg)")
-        }
-        let pollPath = "videos/\(endpoint)/\(taskId)"
+        let plan = try buildPlan { try KlingWire.plan(model: request.model, input: request.wireInput, base: Self.base) }
+        let data = try await session.send(plan, auth: KlingWire.authHeaders(apiKey: apiKey))
+        let taskId = try KlingWire.parseSubmit(data)
         return GenerationSubmission(
             remoteTaskId: taskId,
-            statusURL: base.appendingPathComponent(pollPath),
-            estimatedCostUSD: estimateCost(durationSeconds: request.durationSeconds ?? 5, modelId: request.model)
+            statusURL: KlingWire.pollURL(taskId: taskId, base: Self.base),
+            estimatedCostUSD: request.estimatedCost(providerId: providerId)
         )
     }
 
     func poll(taskId: String, statusURL: URL?, apiKey: String) async throws -> PollStatus {
-        let pollURL = statusURL ?? base.appendingPathComponent("videos/text_to_video/\(taskId)")
-        var urlReq = URLRequest(url: pollURL)
-        urlReq.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-
-        let (data, _) = try await session.jsonData(for: urlReq)
-        let json = try JSONSerialization.jsonObject(with: data) as? [String: Any]
-        let taskData = json?["data"] as? [String: Any]
-        let status = taskData?["task_status"] as? String ?? ""
-
-        switch status {
-        case "submitted":   return .queued
-        case "processing":  return .processing(progress: nil)
-        case "succeed":
-            let result = taskData?["task_result"] as? [String: Any]
-            let videos = result?["videos"] as? [[String: Any]]
-            guard let urlStr = videos?.first?["url"] as? String,
-                  let url = URL(string: urlStr) else {
-                return .failed(message: "No video in Kling result")
-            }
-            return .succeeded(videoURL: url)
-        case "failed":
-            return .failed(message: taskData?["task_status_msg"] as? String ?? "Kling generation failed")
-        default:
-            fputs("{\"warning\":\"Unknown Kling status: \(status)\",\"code\":\"unknown_status\"}\n", stderr)
-            return .queued
-        }
+        let url = statusURL ?? KlingWire.pollURL(taskId: taskId, base: Self.base)
+        let data = try await session.get(url, auth: KlingWire.authHeaders(apiKey: apiKey))
+        return try KlingWire.parsePoll(data)
     }
-
 }

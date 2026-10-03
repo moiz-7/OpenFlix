@@ -77,3 +77,49 @@ func makeSession() -> URLSession {
     config.timeoutIntervalForResource = 120
     return URLSession(configuration: config)
 }
+
+// MARK: - Wire glue (CLI clients ↔ OpenFlixKit.ProviderWire)
+
+extension GenerationRequest {
+    /// The provider-neutral form every `ProviderWire` builder takes.
+    /// `referenceImageURL` is already resolved by `GenerationEngine.submit`
+    /// (an http(s) URL or a `data:` URI) by the time a client sees it.
+    var wireInput: WireInput {
+        WireInput(prompt: prompt, negativePrompt: negativePrompt, image: referenceImageURL,
+                  durationSeconds: durationSeconds, aspectRatio: aspectRatio,
+                  width: width, height: height, extra: extraParams)
+    }
+
+    /// Up-front estimate honouring any resolution/audio the caller asked for.
+    func estimatedCost(providerId: String) -> Double {
+        let hints = ModelPricing.pricingHints(from: extraParams)
+        return ModelPricing.estimate(durationSeconds: durationSeconds ?? 5, modelId: model,
+                                     providerId: providerId, resolution: hints.resolution, audio: hints.audio)
+    }
+}
+
+/// Builds a plan, mapping wire refusals onto the CLI's error surface so an
+/// agent sees `invalid_input` with the model named, not an opaque failure.
+func buildPlan(_ make: () throws -> WirePlan) throws -> WirePlan {
+    do { return try make() }
+    catch let e as WireError { throw OpenFlixError.invalidInput(e.errorDescription ?? "\(e)") }
+}
+
+extension URLSession {
+    /// POSTs a wire plan with the given auth headers and returns the body.
+    func send(_ plan: WirePlan, auth: [String: String]) async throws -> Data {
+        var req = URLRequest(url: plan.url)
+        req.httpMethod = "POST"
+        for (k, v) in auth { req.setValue(v, forHTTPHeaderField: k) }
+        for (k, v) in plan.headers { req.setValue(v, forHTTPHeaderField: k) }
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: plan.body)
+        return try await jsonData(for: req).0
+    }
+
+    func get(_ url: URL, auth: [String: String]) async throws -> Data {
+        var req = URLRequest(url: url)
+        for (k, v) in auth where k != "Content-Type" { req.setValue(v, forHTTPHeaderField: k) }
+        return try await jsonData(for: req).0
+    }
+}

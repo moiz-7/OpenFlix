@@ -8,49 +8,28 @@ import Foundation
 /// (ProviderProtocol.swift) and resolves through this table.
 public enum ModelPricing {
 
-    /// $/second by model id. Model ids are unique across providers.
-    public static let costPerSecondUSD: [String: Double] = [
-        // fal.ai
-        "fal-ai/bytedance/seedance/v2/text-to-video":  0.05,
-        "fal-ai/bytedance/seedance/v2/image-to-video": 0.06,
-        "fal-ai/kling-video/v2/master/text-to-video":  0.06,
-        "fal-ai/minimax/hailuo-02":                    0.05,
-        "fal-ai/luma-dream-machine":                   0.08,
-        "fal-ai/hunyuan-video":                        0.04,
-        "fal-ai/wan/v2.1/1080p":                       0.03,
-        "fal-ai/veo3":                                 0.15,
-        // Replicate
-        "minimax/video-01-live":                       0.05,
-        "tencent/hunyuan-video":                       0.04,
-        "wavespeed-ai/wan-2.1":                        0.03,
-        "kwaai/kling-v1.6-pro":                        0.10,
-        // Runway
-        "gen4_turbo":                                  0.05,
-        "gen4.5":                                      0.10,
-        // Luma
-        "ray-2":                                       0.10,
-        "ray-flash-2":                                 0.05,
-        "ray-3":                                       0.20,
-        // Kling
-        "kling-v2.6-pro":                              0.10,
-        "kling-v2.6-std":                              0.05,
-        "kling-v2.5-turbo":                            0.03,
-        // MiniMax
-        "MiniMax-Hailuo-2.3":                          0.05,
-        "T2V-01-Director":                             0.04,
-        "S2V-01":                                      0.05,
-        // Local (ComfyUI) — zero marginal cost
-        "comfyui":                                     0.0,
-    ]
+    /// $/second by model id, at each model's default settings. Derived from
+    /// `VideoModelCatalog` — edit prices there, not here. Model ids are unique
+    /// across providers except where the app's "seedance" provider shares
+    /// fal's Seedance endpoints, which carry the same price.
+    public static let costPerSecondUSD: [String: Double] = {
+        var table: [String: Double] = ["comfyui": 0.0]   // local — zero marginal cost
+        for spec in VideoModelCatalog.all where table[spec.modelId] == nil {
+            table[spec.modelId] = spec.defaultCostPerSecond
+        }
+        return table
+    }()
 
     /// Fallback $/second when a model is missing from the table.
     public static let providerFallbackUSD: [String: Double] = [
-        "fal": 0.05, "replicate": 0.05, "runway": 0.05,
-        "luma": 0.10, "kling": 0.05, "minimax": 0.05,
+        // An uncatalogued model on a known provider: priced near the top of
+        // that provider's catalog, because under-estimating defeats the gate.
+        "fal": 0.40, "replicate": 0.40, "runway": 0.40,
+        "luma": 0.33, "kling": 0.17, "minimax": 0.13, "seedance": 0.70,
         "local": 0.0,
     ]
 
-    public static let globalFallbackUSD = 0.05
+    public static let globalFallbackUSD = 0.40
 
     /// $/second for a model, falling back per provider, then globally.
     public static func costPerSecond(_ modelId: String, providerId: String) -> Double {
@@ -59,12 +38,22 @@ public enum ModelPricing {
             ?? globalFallbackUSD
     }
 
-    /// Up-front estimate: $/second × duration.
+    /// Up-front estimate for one clip.
+    ///
+    /// For a catalogued model this is `VideoModelSpec.estimateUSD`: the
+    /// duration is rounded UP to what the provider will actually make, and an
+    /// unknown resolution/audio setting takes the highest matching rate — a
+    /// budget gate must over-estimate, never under.
+    ///
     /// Guards non-finite/negative durations — a `NaN` estimate silently defeats
     /// budget gates (every `NaN > limit` comparison is false), and a negative
     /// duration yields a negative "credit".
-    public static func estimate(durationSeconds: Double, modelId: String, providerId: String) -> Double {
+    public static func estimate(durationSeconds: Double, modelId: String, providerId: String,
+                                resolution: String? = nil, audio: Bool? = nil) -> Double {
         guard durationSeconds.isFinite, durationSeconds > 0 else { return 0 }
+        if let spec = VideoModelCatalog.spec(provider: providerId, model: modelId) {
+            return spec.estimateUSD(requestedSeconds: durationSeconds, resolution: resolution, audio: audio)
+        }
         // A provider nobody has heard of cannot bill: ProviderRegistry refuses
         // it and GenerationEngine.submit throws before any network call, so
         // quoting the global fallback for it invents a cost that shows up in
@@ -73,6 +62,18 @@ public enum ModelPricing {
         // fallback rather than estimating $0 and skipping the budget gate.
         guard costPerSecondUSD[modelId] != nil || providerFallbackUSD[providerId] != nil else { return 0 }
         return costPerSecond(modelId, providerId: providerId) * durationSeconds
+    }
+
+    /// Resolution/audio a request asked for through its extra parameters, in
+    /// the spellings the apps and providers use.
+    public static func pricingHints(from params: [String: Any]) -> (resolution: String?, audio: Bool?) {
+        let res = params["resolution"] as? String
+        var audio: Bool? = nil
+        for key in ["generate_audio", "audio", "native_audio"] {
+            if let b = params[key] as? Bool { audio = b; break }
+            if let s = params[key] as? String { audio = (s == "native" || s == "on" || s == "true"); break }
+        }
+        return (res, audio)
     }
 }
 

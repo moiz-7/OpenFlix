@@ -41,10 +41,17 @@ final class GenerationEngine {
         let provider = try ProviderRegistry.shared.provider(for: providerID)
         let key = try CLIKeychain.resolveKey(provider: providerID, flagValue: apiKey)
 
-        // Reference-image pre-flight: reject a local file reference before we
-        // run hooks or bill a generation the provider can't use (see helper).
+        // Reference-image pre-flight: refuse a reference the provider can't
+        // receive (unreadable, out of limits, or any local file for Luma)
+        // before we run hooks or bill a generation that would ignore it.
         do { try validateReferenceImage(referenceImageURL, providerID: providerID) }
         catch { throw logRefusal("reference_image", logContext, error) }
+
+        // Model pre-flight: a retired id, or a text prompt to a model that
+        // needs an image (and vice versa), is refused by name here — before
+        // hooks, budget or a network call — instead of as a provider 400.
+        do { try validateModel(providerID: providerID, model: model, hasImage: referenceImageURL != nil) }
+        catch { throw logRefusal("model", logContext, error) }
 
         // Duration pre-flight. `generate` validates at the flag boundary; the
         // batch / recipe / project / workflow / scatter / MCP paths do not, so
@@ -81,20 +88,9 @@ final class GenerationEngine {
         do { try HookRunner.runPreGenerate(spec: hookSpec) }
         catch { throw logRefusal("hook_veto", logContext, error) }
 
-        let request = GenerationRequest(
-            prompt: prompt,
-            negativePrompt: negativePrompt,
-            referenceImageURL: referenceImageURL,
-            model: model,
-            width: width,
-            height: height,
-            durationSeconds: durationSeconds,
-            aspectRatio: aspectRatio,
-            extraParams: extraParams
-        )
-
         // Budget pre-flight check (estimate from provider model costs).
-        let estCost = preflightEstimate(durationSeconds: durationSeconds,
+        let estCost = preflightEstimate(durationSeconds: durationSeconds, providerID: providerID,
+                                        model: model, extraParams: extraParams,
                                         costPerSecondUSD: modelInfo?.costPerSecondUSD)
         logContext["preflight_estimate_usd"] = estCost
         if estCost > 0 {
@@ -103,6 +99,36 @@ final class GenerationEngine {
                 throw logRefusal("budget", logContext, OpenFlixError.budgetExceeded(reason))
             }
         }
+
+        // A local reference image becomes something the provider can fetch:
+        // a data URI (Runway, MiniMax, Kling, Replicate) or a fal CDN upload.
+        // Done last, after every free gate, so nothing is uploaded for a
+        // request that was going to be refused. The stored generation keeps
+        // the ORIGINAL path, so `retry` re-encodes rather than resending a
+        // multi-megabyte data URI out of the record.
+        var wireImage = referenceImageURL
+        if let ref = referenceImageURL, providerID != "local", ReferenceImageResolver.isLocal(ref) {
+            do {
+                wireImage = try await ReferenceImageResolver.resolve(
+                    ref, providerId: providerID, apiKey: key,
+                    uploader: providerID == "fal" ? FalClient.uploader() : nil)
+            } catch {
+                let msg = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+                throw logRefusal("reference_image", logContext, OpenFlixError.invalidInput(msg))
+            }
+        }
+
+        let request = GenerationRequest(
+            prompt: prompt,
+            negativePrompt: negativePrompt,
+            referenceImageURL: wireImage,
+            model: model,
+            width: width,
+            height: height,
+            durationSeconds: durationSeconds,
+            aspectRatio: aspectRatio,
+            extraParams: extraParams
+        )
 
         let submission: GenerationSubmission
         do { submission = try await provider.submit(request: request, apiKey: key) }
@@ -410,6 +436,22 @@ final class GenerationEngine {
     ///     fall back to a nominal default so the gate always runs.
     ///   • A non-finite duration makes `cps * dur` NaN, and `NaN > limit` is
     ///     always false — silently defeating the gate. We sanitise first.
+    /// Catalog-aware estimate: rounds the duration up to what the provider
+    /// will bill and takes the highest rate for an unspecified resolution or
+    /// audio setting. Falls back to `costPerSecondUSD × duration` for a model
+    /// outside the catalog.
+    static func preflightEstimate(durationSeconds: Double?, providerID: String, model: String,
+                                  extraParams: [String: Any], costPerSecondUSD: Double?) -> Double {
+        if VideoModelCatalog.spec(provider: providerID, model: model) != nil {
+            let raw = durationSeconds ?? defaultBillableDurationSeconds
+            let dur = (raw.isFinite && raw > 0) ? raw : defaultBillableDurationSeconds
+            let hints = ModelPricing.pricingHints(from: extraParams)
+            return ModelPricing.estimate(durationSeconds: dur, modelId: model, providerId: providerID,
+                                         resolution: hints.resolution, audio: hints.audio)
+        }
+        return preflightEstimate(durationSeconds: durationSeconds, costPerSecondUSD: costPerSecondUSD)
+    }
+
     static func preflightEstimate(durationSeconds: Double?, costPerSecondUSD: Double?) -> Double {
         guard let cps = costPerSecondUSD, cps > 0 else { return 0 }
         let raw = durationSeconds ?? defaultBillableDurationSeconds
@@ -427,12 +469,27 @@ final class GenerationEngine {
     /// the same machine, so it is exempt.
     static func validateReferenceImage(_ url: URL?, providerID: String) throws {
         guard let url, providerID != "local" else { return }
-        let scheme = url.scheme?.lowercased()
-        guard scheme == "http" || scheme == "https" else {
-            throw OpenFlixError.invalidResponse(
-                "Reference image must be a public http(s) URL — local files aren't uploaded to \(providerID) (got: \(url.absoluteString)). Upload the image and pass its URL.")
+        // Local files are delivered now (see ReferenceTransport); what is
+        // refused is a file that can't be read or decoded, one outside the
+        // providers' size/aspect limits, or any local file for Luma, whose
+        // API takes images by public URL only.
+        if let refusal = ReferenceImageResolver.refusal(for: url, providerId: providerID) {
+            throw OpenFlixError.invalidResponse(refusal)
         }
     }
+
+    /// Refuses retired model ids and text/image mismatches before any spend.
+    /// Uncatalogued fal/Replicate ids pass (see `ProviderWire.spec`).
+    static func validateModel(providerID: String, model: String, hasImage: Bool) throws {
+        guard providerID != "local" else { return }
+        do {
+            let spec = try ProviderWire.spec(provider: providerID, model: model)
+            _ = try ProviderWire.endpoint(spec, hasImage: hasImage)
+        } catch let e as WireError {
+            throw OpenFlixError.invalidInput(e.errorDescription ?? "\(e)")
+        }
+    }
+
 
     // MARK: - Reference-image parsing (C1-2)
 
