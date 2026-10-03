@@ -139,6 +139,23 @@ actor BridgeGate {
         return (quote.resolved, quote.estimatedCostUSD)
     }
 
+    /// Takes a quote by its hash alone — for `confirm_spend`, where the hash
+    /// *is* the approved call, and the quoted (resolved) arguments run.
+    func claim(opHash: String, grant: AgentGrant) throws
+        -> (action: String, resolved: [String: AnyCodableValue], estimate: Double) {
+        purgeExpired()
+        guard let quote = quotes[opHash], quote.grant == grant.name else {
+            throw ActionFailure(code: "QUOTE_STALE", errorClass: .conflict,
+                                message: "No live quote with that op_hash for this agent — it expired, was already used, or the bridge restarted. Call request_spend again.")
+        }
+        quotes[opHash] = nil
+        let spent = grants.spentToday(grant.name, now: now())
+        if let refusal = capRefusal(grant: grant, spent: spent, estimate: quote.estimatedCostUSD) {
+            throw refusal
+        }
+        return (quote.action, quote.resolved, quote.estimatedCostUSD)
+    }
+
     func recordSpend(grant: AgentGrant, amountUSD: Double) throws {
         try grants.recordSpend(grant.name, amountUSD: amountUSD, now: now())
     }

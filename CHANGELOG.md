@@ -5,6 +5,25 @@ All notable changes to the `openflix` CLI. Format loosely follows [Keep a Change
 ## [Unreleased]
 
 ### Added
+- **OpenClaw and Hermes, first class.** `openflix integrate openclaw|hermes`
+  installs one SKILL.md both agents load (OpenClaw `metadata.openclaw` gating
+  and brew install, Hermes fields; description routes on its first 60
+  characters) and adds the MCP server through the agent's own CLI
+  (`--register`); `--remote <https url>` prints the config for an agent on
+  another machine. See `docs/agent-integrations.md`.
+- **MCP over the bridge: `openflix serve` answers Streamable HTTP at `/mcp`.**
+  Stateless (both handshake eras), tool list filtered by the agent's grant,
+  GET/HEAD → 405 for client preflights. Spending is two tool calls —
+  `request_spend` (quote, single-use op_hash) and `confirm_spend` (run the
+  quoted call once; a retry replays) — under the grant's daily cap.
+- **Play video in OpenFlix, not another player.** `play_video` / `openflix play`
+  open a generation, file or stream in the OpenFlix app (its socket when agent
+  access is on, so it can seek; an `openflix://` link otherwise, which needs no
+  setting and launches the app). `control_playback` pauses/resumes. Finished
+  generations carry `show_user`: the play call and a `MEDIA:<path>` line for
+  chat replies.
+- **Recipes as actions: `list_recipes`, `run_recipe`** (quotable over the
+  bridge). `openflix recipe run` and `run_recipe` share one resolver.
 - **An HTTP bridge for agents on other machines: `openflix serve`.** Listens on
   127.0.0.1 only; put Tailscale Serve in front of it to reach it from your
   tailnet. Serves the action manifest and every action through the same door

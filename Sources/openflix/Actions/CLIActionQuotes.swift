@@ -26,7 +26,7 @@ extension CLIActions {
     /// (`project_run` is a graph with its own plan and ceiling; `evaluate_quality`
     /// bills a different account) or block for minutes (`generate` — use
     /// `generate_submit` and poll).
-    static let quotableActions: Set<String> = ["generate_submit", "retry_generation"]
+    static let quotableActions: Set<String> = ["generate_submit", "retry_generation", "run_recipe"]
 
     /// Providers that cost nothing to call, so a $0 quote is true rather than
     /// a pricing gap.
@@ -67,6 +67,16 @@ extension CLIActions {
                               durationSeconds: gen.durationSeconds, aspectRatio: gen.aspectRatio,
                               resolved: arguments)
 
+        case "run_recipe":
+            let id = try requireIdentifier(arguments, "recipe_id")
+            guard let stored = RecipeStore.shared.get(id) else {
+                throw OpenFlixError.invalidInput("Recipe '\(id)' not found. See list_recipes.")
+            }
+            let launch = try RecipeLaunch.prepareForAction(stored, provided: recipeArgumentValues(arguments))
+            return try priced(action: name, provider: launch.provider, model: launch.model,
+                              durationSeconds: launch.recipe.durationSeconds,
+                              aspectRatio: launch.recipe.aspectRatio, resolved: arguments)
+
         default:
             throw ActionInputError(argument: nil, message: "'\(name)' cannot be quoted")
         }
@@ -94,7 +104,7 @@ extension CLIActions {
         var parts = ["\(provider) \(model)", "\(trim(billed))s"]
         if let aspectRatio { parts.append(aspectRatio) }
         parts.append(String(format: "est $%.2f", estimate))
-        let verb = action == "retry_generation" ? "Retry" : "Generate"
+        let verb = action == "retry_generation" ? "Retry" : (action == "run_recipe" ? "Run recipe" : "Generate")
         return SpendQuote(action: action, resolvedArguments: resolved, estimatedCostUSD: estimate,
                           summary: "\(verb): " + parts.joined(separator: " · "),
                           provider: provider, model: model)

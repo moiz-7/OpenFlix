@@ -489,40 +489,27 @@ struct RecipeRun: AsyncParsableCommand {
             recipe = found
         }
 
-        // Resolve declared args (v3) and substitute {{name}} placeholders.
-        // v2 recipes (no args) with no --arg flags pass through unchanged.
+        // Arguments, provider and model: resolved the same way the
+        // `run_recipe` action resolves them (RecipeLaunch).
+        let launch: RecipeLaunch
         do {
-            let provided = try RecipeArgResolver.parseArgFlags(arg)
-            let values = try RecipeArgResolver.resolve(args: recipe.args ?? [], provided: provided)
-            recipe = recipe.substituting(values)
+            let provided: [String: String]
+            do { provided = try RecipeArgResolver.parseArgFlags(arg) }
+            catch let e as RecipeArgError { Output.failMessage(e.errorDescription ?? "Invalid recipe arg", code: e.code) }
+            launch = try RecipeLaunch.prepare(recipe, provided: provided)
         } catch let e as RecipeArgError {
             Output.failMessage(e.errorDescription ?? "Invalid recipe arg", code: e.code)
+        } catch let e as OpenFlixError {
+            Output.fail(e)
+        } catch {
+            Output.failMessage(error.localizedDescription)
         }
-
-        // Validate provider/model
-        guard let providerID = recipe.provider, !providerID.isEmpty else {
-            Output.failMessage("Recipe has no provider set. Use: openflix recipe fork \(recipe.id) --provider <provider>", code: "invalid_input")
-        }
-        guard let modelID = recipe.model, !modelID.isEmpty else {
-            Output.failMessage("Recipe has no model set. Use: openflix recipe fork \(recipe.id) --model <model>", code: "invalid_input")
-        }
-
-        let registry = ProviderRegistry.shared
-        guard let prov = try? registry.provider(for: providerID) else {
+        recipe = launch.recipe
+        let providerID = launch.provider
+        let modelID = launch.model
+        let extras = launch.extraParams
+        guard let prov = try? ProviderRegistry.shared.provider(for: providerID) else {
             Output.fail(.providerNotFound(providerID))
-        }
-        let modelInfo = prov.models.first { $0.modelId == modelID }
-        if modelInfo == nil {
-            Output.failMessage(VideoModelCatalog.retiredRefusal(model: modelID)
-                ?? "Model '\(modelID)' not found for provider '\(providerID)'. Run: openflix models --provider \(providerID)",
-                code: "model_not_found")
-        }
-
-        // Parse parametersJSON into extras dict
-        var extras: [String: Any] = [:]
-        if let json = recipe.parametersJSON, let data = json.data(using: .utf8),
-           let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            extras = dict
         }
 
         // Dry run

@@ -1135,12 +1135,12 @@ fi
 # (14 from Round 6 + submit_vote from the flywheel wiring). Counted from what
 # the binary actually offers — the MCP tool list is derived from the same
 # catalog — rather than by grepping a source file for a constructor name.
-echo "117. Round 6: action manifest has 15 actions"
+echo "117. Round 6: action manifest has 19 actions"
 tool_count=$($BINARY action list 2>/dev/null | python3 -c 'import json,sys; print(len(json.load(sys.stdin)["actions"]))' 2>/dev/null)
-if [ "$tool_count" = "15" ]; then
-    pass "action manifest has 15 actions"
+if [ "$tool_count" = "19" ]; then
+    pass "action manifest has 19 actions"
 else
-    fail "action manifest has 15 actions (got $tool_count)"
+    fail "action manifest has 19 actions (got $tool_count)"
 fi
 
 # ── 118. Round 6: MCPToolRegistry has 3 resources ───────
@@ -2414,7 +2414,7 @@ echo "220. Every command's --help renders (no ArgumentParser configuration trap)
 HELP_OK=1
 HELP_BAD=""
 for cmd in action agents batch budget cancel compare cost daemon delete download evaluate \
-           feedback generate health keys list mcp metrics project providers \
+           feedback generate health integrate keys list mcp metrics play project providers \
            purge quickstart recipe retry serve status vote workflow; do
     if ! $BINARY $cmd --help >/dev/null 2>&1; then
         HELP_OK=0
@@ -2422,7 +2422,7 @@ for cmd in action agents batch budget cancel compare cost daemon delete download
     fi
 done
 if [ "$HELP_OK" -eq 1 ]; then
-    pass "all 28 top-level commands render --help"
+    pass "all 30 top-level commands render --help"
 else
     fail "--help failed for:$HELP_BAD"
 fi

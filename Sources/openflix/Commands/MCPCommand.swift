@@ -26,11 +26,16 @@ struct MCP: AsyncParsableCommand {
         not serve returns -32022 with the list to retry with, rather than the
         silence a legacy-only server answers with.
 
-        EXPOSED TOOLS (15):
+        EXPOSED TOOLS (19):
           generate, generate_submit, generate_poll, list_generations,
           get_generation, cancel_generation, retry_generation, list_providers,
           evaluate_quality, submit_feedback, submit_vote, get_metrics,
-          budget_status, project_run, health_check
+          budget_status, project_run, health_check, list_recipes, run_recipe,
+          play_video, control_playback
+
+        To show the user a video, agents call play_video (it opens the OpenFlix
+        player) rather than `open`, VLC or QuickTime. For OpenClaw and Hermes,
+        `openflix integrate openclaw|hermes` installs the skill and this server.
 
         Every tool is annotated, so a client can tell a local read from a call
         that spends money before it makes it. The annotations are derived from

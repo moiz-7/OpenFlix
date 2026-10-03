@@ -84,6 +84,18 @@ actor MCPServer {
     /// it — but a test asserts modern requests are served while this is false.
     private(set) var didHandshake = false
 
+    /// Set when serving a remote agent over `openflix serve`'s `/mcp`: its
+    /// grant decides the tool list and every call. Nil for `openflix mcp`.
+    private let remote: RemoteMCPGateway?
+
+    init(remote: RemoteMCPGateway? = nil) {
+        self.remote = remote
+    }
+
+    private var instructionsText: String {
+        remote == nil ? Self.instructions : RemoteMCPGateway.instructions
+    }
+
     // MARK: - Main loop
 
     func run() async {
@@ -135,7 +147,7 @@ actor MCPServer {
 
         // Tool methods
         case MCPMethod.toolsList:
-            return complete(id: request.id, toolsListResult())
+            return complete(id: request.id, await toolsListResult())
         case MCPMethod.toolsCall:
             return await handleToolsCall(request)
 
@@ -208,7 +220,7 @@ actor MCPServer {
                 "name": .string(Self.serverName),
                 "version": .string(OpenFlixVersion.current),
             ]),
-            "instructions": .string(Self.instructions),
+            "instructions": .string(instructionsText),
         ], ttlMs: Self.toolListTTLms)
     }
 
@@ -225,7 +237,7 @@ actor MCPServer {
                 "name": .string(Self.serverName),
                 "version": .string(OpenFlixVersion.current),
             ]),
-            "instructions": .string(Self.instructions),
+            "instructions": .string(instructionsText),
         ])
     }
 
@@ -247,13 +259,17 @@ actor MCPServer {
         + "call budget_status first and confirm with the user before using them. "
         + "project_run spends money once per shot across a whole graph: called with only a project_id it spends nothing "
         + "and returns a cost plan; executing needs confirm=true and an explicit max_cost_usd ceiling. "
+        + "To show the user a video, call play_video (opens it in the OpenFlix player) — never `open`, VLC or "
+        + "QuickTime — or attach it to a chat reply as MEDIA:<local_path>. Prefer a saved recipe (list_recipes, "
+        + "run_recipe) over a raw prompt when one fits. "
         + "Everything else here reads local state. Saved .openflix recipes are exposed as prompts; "
         + "rendering one produces prompt text and never submits anything."
 
     // MARK: - Tools
 
-    private func toolsListResult() -> AnyCodableValue {
-        let tools = MCPToolRegistry.allTools.map { $0.toAnyCodable() }
+    private func toolsListResult() async -> AnyCodableValue {
+        let definitions = if let remote { await remote.toolDefinitions() } else { MCPToolRegistry.allTools }
+        let tools = definitions.map { $0.toAnyCodable() }
         return Self.cacheable(["tools": .array(tools)], ttlMs: Self.toolListTTLms)
     }
 
@@ -306,6 +322,21 @@ actor MCPServer {
                 ]),
                 "isError": .bool(true),
             ]))
+        } catch let failure as ActionFailure {
+            // A grant, quote or cap decision (remote agents): in-band, with the
+            // class an agent can branch on.
+            var body: [String: Any] = ["code": failure.code, "class": failure.errorClass.rawValue,
+                                       "message": failure.message, "retryable": failure.retryable]
+            if let details = failure.details { body["details"] = details.anyValue }
+            return complete(id: request.id, .dictionary([
+                "content": .array([
+                    .dictionary([
+                        "type": .string("text"),
+                        "text": .string(jsonString(body)),
+                    ])
+                ]),
+                "isError": .bool(true),
+            ]))
         } catch let input as ActionInputError {
             // The arguments did not match the tool's schema, so nothing ran.
             // Same in-band shape as every other refusal of bad input.
@@ -341,7 +372,10 @@ actor MCPServer {
     // MARK: - Resources
 
     private func resourcesListResult() -> AnyCodableValue {
-        let resources = MCPToolRegistry.allResources.map { $0.toAnyCodable() }
+        // Resources are reads of this machine's store; a remote grant without
+        // read sees none.
+        let resources = (remote.map { $0.grant.allows(.read) } ?? true)
+            ? MCPToolRegistry.allResources.map { $0.toAnyCodable() } : []
         return Self.cacheable(["resources": .array(resources)], ttlMs: Self.resourceListTTLms)
     }
 
@@ -351,6 +385,10 @@ actor MCPServer {
     }
 
     private func handleResourcesRead(_ request: MCPRequest) async -> MCPResponse {
+        if let remote, !remote.grant.allows(.read) {
+            return MCPResponse.error(id: request.id, code: MCPErrorCode.invalidParams,
+                                     message: "This agent grant does not allow reads.")
+        }
         guard let params = request.params,
               case .string(let uri) = params["uri"] else {
             return MCPResponse.error(id: request.id, code: MCPErrorCode.invalidParams,
@@ -416,6 +454,9 @@ actor MCPServer {
     /// between this server and any other surface.
     private func dispatchTool(name: String, arguments: [String: AnyCodableValue],
                               progressToken: AnyCodableValue? = nil) async throws -> [String: Any] {
+        if let remote {
+            return try await remote.call(name, arguments: arguments)
+        }
         let progress: (@Sendable (ActionProgress) -> Void)? = progressToken.map { token in
             { @Sendable p in Self.sendProgress(token: token, completed: p.completed, total: p.total, message: p.message) }
         }

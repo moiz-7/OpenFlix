@@ -78,6 +78,10 @@ Claude Desktop (`claude_desktop_config.json`) or `.claude.json`:
 | `budget_status` | Current spend vs. daily/per-generation/monthly limits. |
 | `project_run` | **Run a multi-shot project's DAG — spends money once per shot.** Called with only `project_id` it spends nothing and returns a cost plan (per-shot provider/model, total estimate, which shots would be refused locally, current budget). Executing needs `confirm: true` **and** `max_cost_usd`, which is enforced both before submission and as a live budget gate during the run. See [`mcp-protocol.md`](mcp-protocol.md). |
 | `health_check` | Which providers have a key on this machine (local Keychain read — it does not ping anyone). |
+| `list_recipes` | The user's saved recipes (tested prompt templates with typed `{{args}}`). Prefer one over a raw prompt. |
+| `run_recipe` | **Submit a generation from a saved recipe — spends money.** Fills its args; poll with `generate_poll`. |
+| `play_video` | **Show the user a video in the OpenFlix player** — a generation, an absolute file path, or an http(s) URL. Use this instead of `open`, VLC or QuickTime. |
+| `control_playback` | Pause or resume the OpenFlix player. |
 
 Every tool is annotated, so your agent's client can tell a local read from a
 call that spends money **before** it makes it: `generate`, `generate_submit`,

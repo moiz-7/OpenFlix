@@ -325,8 +325,10 @@ final class MCPDualEraTests: XCTestCase {
         XCTAssertTrue(MCPIdentifier.isWellFormed("openflix.generate"))
     }
 
+    /// 15 through Phase 2; 19 since list_recipes, run_recipe, play_video and
+    /// control_playback made recipes and playback part of the agent surface.
     func testTheToolCountIsUnchanged() {
-        XCTAssertEqual(MCPToolRegistry.allTools.count, 15)
+        XCTAssertEqual(MCPToolRegistry.allTools.count, 19)
     }
 
     func testEveryToolArrivesAnnotatedOnTheWire() async {

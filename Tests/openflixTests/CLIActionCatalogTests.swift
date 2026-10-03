@@ -60,6 +60,10 @@ final class CLIActionCatalogTests: XCTestCase {
             "get_metrics":       (true,  nil,   nil,   false),
             "budget_status":     (true,  nil,   nil,   false),
             "health_check":      (true,  nil,   nil,   false),
+            "list_recipes":      (true,  nil,   nil,   false),
+            "run_recipe":        (false, true,  false, true),
+            "play_video":        (false, false, false, false),
+            "control_playback":  (false, false, false, false),
         ]
         XCTAssertEqual(Set(expected.keys), Set(CLIActionCatalog.all.map(\.name)))
         for descriptor in CLIActionCatalog.all {

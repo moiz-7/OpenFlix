@@ -94,6 +94,8 @@ struct OpenFlix: AsyncParsableCommand {
             MCP.self,
             ActionGroup.self,
             Serve.self,
+            Play.self,
+            Integrate.self,
             AgentsGroup.self,
             RecipeGroup.self,
             Compare.self,

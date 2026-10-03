@@ -10,6 +10,10 @@ agent (another machine) ──HTTPS over your tailnet──▶ tailscale serve �
                                                             the running app ◀┘ (its own socket, if enabled)
 ```
 
+It also speaks MCP (Streamable HTTP) at `/mcp` for agents such as OpenClaw and
+Hermes, with spending as two tool calls (`request_spend`, then `confirm_spend`);
+see [`agent-integrations.md`](agent-integrations.md).
+
 The bridge offers the same actions, with the same argument validation, as
 `openflix mcp` and `openflix action run`. It also relays the running app's
 library and player tools, when the app allows it.

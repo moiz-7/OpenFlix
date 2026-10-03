@@ -377,6 +377,67 @@ enum CLIActionCatalog {
                 ]
             )
         ),
+        ActionDescriptor(
+            name: "list_recipes",
+            title: "List saved recipes",
+            description: "List the user's saved OpenFlix recipes: reusable, tested prompt templates with a provider, model, duration and typed {{arguments}}. Prefer running a recipe (run_recipe) over writing a raw prompt when one fits. Local read.",
+            effect: .read, openWorld: false,
+            inputSchema: JSONSchema.object(properties: [
+                "search": JSONSchema.string("Only recipes whose name or prompt contains this text"),
+            ]),
+            outputSchema: JSONSchema.result(
+                required: ["recipes", "count"],
+                properties: [
+                    "recipes": JSONSchema.array("Saved recipes with their declared args", items: .object(["type": .string("object")])),
+                    "count": JSONSchema.integer("How many were returned"),
+                ]),
+            returnsUntrustedText: true
+        ),
+        ActionDescriptor(
+            name: "run_recipe",
+            title: "Run a saved recipe (spends money)",
+            description: "Submit a generation from a saved recipe (see list_recipes), filling its {{arguments}}. Returns the generation; poll it with generate_poll. SPENDS THE USER'S OWN PROVIDER CREDIT under the same budget, safety and hook gates as generate_submit.",
+            effect: .spend, openWorld: true,
+            inputSchema: JSONSchema.object(
+                required: ["recipe_id"],
+                properties: [
+                    "recipe_id": id("The recipe ID (from list_recipes)"),
+                    "args": JSONSchema.freeformObject("Values for the recipe's declared arguments, by name, e.g. {\"subject\": \"a fox\"}. Omitted arguments use their defaults."),
+                ]),
+            outputSchema: generationSchema,
+            returnsUntrustedText: true
+        ),
+        ActionDescriptor(
+            name: "play_video",
+            title: "Play a video for the user in OpenFlix",
+            description: "Show a video to the user on this Mac by opening it in the OpenFlix player. Use this whenever the user wants to watch something — a generation, a file, or a stream URL — INSTEAD of `open`, VLC or QuickTime. Pass exactly one of generation_id, path or url. Launches OpenFlix if it is closed.",
+            effect: .control, openWorld: false,
+            inputSchema: JSONSchema.object(properties: [
+                "generation_id": id("An OpenFlix generation to play (from generate_submit, list_generations, …)"),
+                "path": JSONSchema.string("Absolute path to a video or audio file on this Mac"),
+                "url": JSONSchema.string("An http(s) stream or page URL to play"),
+                "seek_seconds": JSONSchema.number("Start this many seconds in (local files; needs the app's control access)", minimum: 0),
+            ]),
+            outputSchema: JSONSchema.result(
+                required: ["status", "via"],
+                properties: [
+                    "status": JSONSchema.string("\"playing\" (confirmed by the app) or \"opened\" (handed to the app)"),
+                    "via": JSONSchema.string("\"app_socket\" or \"deep_link\""),
+                    "note": JSONSchema.string("Anything the user should know, e.g. why it could not seek"),
+                ])
+        ),
+        ActionDescriptor(
+            name: "control_playback",
+            title: "Pause or resume OpenFlix",
+            description: "Pause or resume whatever is playing in the OpenFlix player on this Mac.",
+            effect: .control, openWorld: false,
+            inputSchema: JSONSchema.object(
+                required: ["action"],
+                properties: ["action": JSONSchema.enumeration("pause or resume", ["pause", "resume"])]),
+            outputSchema: JSONSchema.result(
+                required: ["status"],
+                properties: ["status": JSONSchema.string("\"paused\" or \"resumed\"")])
+        ),
     ]
 
     /// One shape for every action that returns a generation record. The five

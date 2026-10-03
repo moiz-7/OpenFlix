@@ -38,10 +38,21 @@ struct BridgeRouter: Sendable {
                                        "version": .string(OpenFlixVersion.current)]))
         }
 
+        // MCP Streamable HTTP: this server answers POSTs only and opens no
+        // server-to-client stream. A 405 here is what clients (Hermes's
+        // preflight among them) take to mean "POST your JSON-RPC".
+        if request.path == "/mcp", request.method != "POST" {
+            return BridgeHTTPResponse(status: 405, headers: ["Allow": "POST"], body: Data())
+        }
+
         guard let grant = authenticate(request) else {
             return error(401, code: "UNAUTHORIZED",
                          "Send Authorization: Bearer <token>. A person issues tokens with `openflix agents grant`.",
                          headers: ["WWW-Authenticate": "Bearer"])
+        }
+
+        if request.path == "/mcp" {
+            return await mcp(request, grant: grant)
         }
 
         if request.path == "/v1/manifest" {
@@ -201,6 +212,40 @@ struct BridgeRouter: Sendable {
         }
         await gate.finish(key: key, grant: grant, requestDigest: digest, response: envelope)
         return outcome
+    }
+
+    // MARK: - MCP (Streamable HTTP, JSON responses)
+
+    /// One JSON-RPC message per POST, answered with one JSON body. Stateless:
+    /// no session id, so a client that never sent `initialize` (2026-07-28)
+    /// and one that did (2025-06-18 and earlier) are both served.
+    private func mcp(_ request: BridgeHTTPRequest, grant: AgentGrant) async -> BridgeHTTPResponse {
+        let message: MCPRequest
+        do {
+            message = try JSONDecoder().decode(MCPRequest.self, from: request.body)
+        } catch {
+            let batch = (try? JSONSerialization.jsonObject(with: request.body)) is [Any]
+            let reply = MCPResponse.error(id: nil, code: batch ? MCPErrorCode.invalidRequest : MCPErrorCode.parseError,
+                                          message: batch ? "JSON-RPC batches are not supported; send one message per request."
+                                                         : "Body is not a JSON-RPC message.")
+            return Self.jsonRPC(reply, status: 400)
+        }
+
+        let server = MCPServer(remote: RemoteMCPGateway(grant: grant, gate: gate, relay: relay))
+        let reply = await server.handleRequest(message)
+        CLILog.info("bridge.mcp", ["agent": grant.name, "method": message.method,
+                                   "tool": message.params?["name"]?.stringValue ?? ""])
+        guard let reply, message.id != nil else {
+            return BridgeHTTPResponse(status: 202, body: Data())   // a notification
+        }
+        return Self.jsonRPC(reply, status: 200)
+    }
+
+    private static func jsonRPC(_ reply: MCPResponse, status: Int) -> BridgeHTTPResponse {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let body = (try? encoder.encode(reply)) ?? Data(#"{"jsonrpc":"2.0","id":null,"error":{"code":-32603,"message":"Unserialisable reply"}}"#.utf8)
+        return BridgeHTTPResponse(status: status, headers: ["Content-Type": "application/json"], body: body)
     }
 
     // MARK: - Manifest

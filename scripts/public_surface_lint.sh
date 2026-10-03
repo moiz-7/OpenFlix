@@ -37,7 +37,7 @@ cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 1
 
 # Documentation intended for people who USE the CLI. Everything else belongs in
 # the private monorepo. Keep this list short and justified.
-ALLOWED_RE='^(README\.md|CHANGELOG\.md|LICENSE(\.md)?|docs/mcp-protocol\.md|docs/mcp-quickstart\.md|docs/agent-bridge\.md|docs/workflows-engine\.md|recipes/README\.md|recipes/FEATURED\.md)$'
+ALLOWED_RE='^(README\.md|CHANGELOG\.md|LICENSE(\.md)?|docs/mcp-protocol\.md|docs/mcp-quickstart\.md|docs/agent-bridge\.md|docs/agent-integrations\.md|skills/openflix/SKILL\.md|docs/workflows-engine\.md|recipes/README\.md|recipes/FEATURED\.md)$'
 
 FAILURES=0
 

@@ -29,7 +29,8 @@ enum CLIActions {
             throw OpenFlixError.invalidResponse("Unknown tool: \(name)")
         }
         try ActionValidator.validate(JSONValue(.dictionary(arguments)), against: descriptor.inputSchema)
-        return try await handler(arguments, context)
+        let result = try await handler(arguments, context)
+        return generationResults.contains(name) ? withPlaybackHints(result) : result
     }
 
     /// One handler per catalog entry. `CLIActionCatalogTests` asserts the two
@@ -50,6 +51,10 @@ enum CLIActions {
         "budget_status":     { _, _ in await toolBudgetStatus() },
         "project_run":       { args, context in try await toolProjectRun(args, context: context) },
         "health_check":      { _, _ in try await toolHealthCheck() },
+        "list_recipes":      { args, _ in toolListRecipes(args) },
+        "run_recipe":        { args, _ in try await toolRunRecipe(args) },
+        "play_video":        { args, _ in try await toolPlayVideo(args) },
+        "control_playback":  { args, _ in try toolControlPlayback(args) },
     ]
 
     /// Any error an action can throw, in the envelope's terms.
