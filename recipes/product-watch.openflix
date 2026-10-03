@@ -9,7 +9,7 @@
       "promptText": "Extreme macro shot diving into the exposed mechanical movement of a luxury Swiss watch, gears meshing and balance wheel oscillating in crisp slow motion. Camera pushes through layers of complications revealing ruby jewels and polished steel bridges, warm tungsten lighting reflecting off brushed and polished surfaces, shallow depth of field isolating each component.",
       "negativePromptText": "blurry, text overlay, low resolution, cluttered background",
       "provider": "runway",
-      "model": "gen4_turbo",
+      "model": "gen4.5",
       "aspectRatio": "16:9",
       "durationSeconds": 10,
       "widthPx": 1280,

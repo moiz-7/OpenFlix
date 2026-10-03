@@ -9,9 +9,9 @@
       "promptText": "Slow underwater dolly through a vibrant coral reef ecosystem, schools of tropical fish parting as the camera glides through branching staghorn and brain coral. Sun rays dappling through the water surface above, a sea turtle drifting gracefully in the background, rich saturated blues and yellows, shot with an underwater housing on a wide-angle rectilinear lens.",
       "negativePromptText": "artificial, CGI look, text, watermark, urban",
       "provider": "fal",
-      "model": "fal-ai/wan/v2.1/1080p",
+      "model": "fal-ai/wan-25-preview/text-to-video",
       "aspectRatio": "16:9",
-      "durationSeconds": 8,
+      "durationSeconds": 10,
       "widthPx": 1280,
       "heightPx": 720,
       "category": "nature"

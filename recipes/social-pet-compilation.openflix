@@ -9,9 +9,9 @@
       "promptText": "Adorable golden retriever puppy compilation — head tilt close-up, clumsy run across a living room, dramatic slow-motion mid-air catch of a treat, and a cozy curl-up in a sunbeam for the finale. Warm natural home lighting, shallow depth of field on a 50mm lens, soft pastel interior backdrop, heartwarming and shareable energy with snappy cuts.",
       "negativePromptText": "horizontal framing, slow pacing, text overlay",
       "provider": "fal",
-      "model": "fal-ai/minimax/hailuo-02",
+      "model": "fal-ai/wan-25-preview/text-to-video",
       "aspectRatio": "9:16",
-      "durationSeconds": 6,
+      "durationSeconds": 10,
       "widthPx": 720,
       "heightPx": 1280,
       "category": "social"

@@ -11,7 +11,7 @@
       "provider": "fal",
       "model": "fal-ai/veo3",
       "aspectRatio": "16:9",
-      "durationSeconds": 10,
+      "durationSeconds": 8,
       "widthPx": 1280,
       "heightPx": 720,
       "category": "trailer"

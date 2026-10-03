@@ -17,7 +17,7 @@ struct OpenFlix: AsyncParsableCommand {
 
           # Generate a video and wait for it
           openflix generate "a cat on the moon" --provider fal \\
-              --model fal-ai/minimax/hailuo-02 --wait
+              --model fal-ai/minimax/hailuo-2.3/pro/text-to-video --wait
 
           # Stream progress events
           openflix generate "neon city timelapse" --provider fal \\

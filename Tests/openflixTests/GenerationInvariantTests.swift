@@ -227,9 +227,10 @@ final class GenerationInvariantTests: XCTestCase {
     func testLocalPathBecomesAFileURLSoTheChokePointCanRefuseIt() throws {
         let url = try XCTUnwrap(try GenerationEngine.parseReferenceImage("/Users/me/My Photos/ref.png"))
         XCTAssertEqual(url.scheme, "file")
-        // …and the honest refusal now actually fires.
+        // …and the choke point sees it as a local file: this one does not
+        // exist, so it is refused as unreadable before anything is billed.
         XCTAssertThrowsError(try GenerationEngine.validateReferenceImage(url, providerID: "fal")) { error in
-            XCTAssertTrue(((error as? OpenFlixError)?.errorDescription ?? "").contains("public http(s) URL"))
+            XCTAssertTrue(((error as? OpenFlixError)?.errorDescription ?? "").contains("Couldn't read the reference image"))
         }
     }
 

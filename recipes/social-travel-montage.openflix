@@ -9,9 +9,9 @@
       "promptText": "Fast-paced travel montage cycling through iconic destinations — a hand dragging across ancient temple stones, feet walking on turquoise beach sand, POV looking up at towering European cathedral ceilings, hands holding street food in a bustling Asian night market. Quick whip-pan transitions between each scene, warm travel film color grade, energetic and aspirational mood.",
       "negativePromptText": "horizontal framing, slow pacing, text overlay",
       "provider": "fal",
-      "model": "fal-ai/minimax/hailuo-02",
+      "model": "fal-ai/wan-25-preview/text-to-video",
       "aspectRatio": "9:16",
-      "durationSeconds": 6,
+      "durationSeconds": 10,
       "widthPx": 720,
       "heightPx": 1280,
       "category": "social"

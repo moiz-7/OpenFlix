@@ -86,6 +86,17 @@ public enum WireError: Error, LocalizedError, Equatable {
 
 public enum ProviderWire {
 
+    /// A status string no parser recognises. Treated as still queued — so a
+    /// provider adding a state does not fail a paid generation — but said out
+    /// loud on stderr, because a silent "queued" is how a renamed terminal
+    /// status turns into a generation that polls until it times out.
+    public static func unknownStatus(_ provider: String, _ status: String) -> PollStatus {
+        let escaped = status.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+        FileHandle.standardError.write(Data(
+            "{\"warning\":\"Unknown \(provider) status: \(escaped)\",\"code\":\"unknown_status\"}\n".utf8))
+        return .queued
+    }
+
     /// The spec for a request, with retired/unknown ids refused by name.
     public static func spec(provider: String, model: String) throws -> VideoModelSpec {
         if let s = VideoModelCatalog.spec(provider: provider, model: model) { return s }
@@ -184,10 +195,15 @@ public enum KlingWire {
         return id
     }
 
+    /// `task_ids` goes in as a query item, so URLComponents percent-encodes
+    /// whatever id the provider returned. Never traps: components of a URL
+    /// that already parsed always rebuild, and if they somehow did not, the
+    /// un-queried path is a request the provider will answer with an error.
     public static func pollURL(taskId: String, base: URL = defaultBase) -> URL {
-        var c = URLComponents(url: ProviderWire.url(base, "tasks"), resolvingAgainstBaseURL: false)!
+        let tasks = ProviderWire.url(base, "tasks")
+        guard var c = URLComponents(url: tasks, resolvingAgainstBaseURL: false) else { return tasks }
         c.queryItems = [URLQueryItem(name: "task_ids", value: taskId)]
-        return c.url!
+        return c.url ?? tasks
     }
 
     public static func parsePoll(_ data: Data) throws -> PollStatus {
@@ -196,7 +212,8 @@ public enum KlingWire {
             return .failed(message: "Kling: \((json?["message"] as? String) ?? "error \(code)")")
         }
         let task: [String: Any]? = (json?["data"] as? [[String: Any]])?.first ?? (json?["data"] as? [String: Any])
-        switch task?["status"] as? String ?? "" {
+        let status = task?["status"] as? String ?? ""
+        switch status {
         case "submitted": return .queued
         case "processing": return .processing(progress: nil)
         case "succeeded":
@@ -209,7 +226,7 @@ public enum KlingWire {
         case "failed":
             return .failed(message: (task?["message"] as? String).map { "Kling: \($0)" } ?? "Kling generation failed")
         default:
-            return .queued
+            return ProviderWire.unknownStatus("Kling", status)
         }
     }
 }
@@ -267,7 +284,8 @@ public enum RunwayWire {
     }
 
     public static func parsePoll(_ json: [String: Any]?) -> PollStatus {
-        switch json?["status"] as? String ?? "" {
+        let status = json?["status"] as? String ?? ""
+        switch status {
         case "PENDING", "THROTTLED": return .queued
         case "RUNNING":
             let progress = (json?["progress"] as? Double) ?? (json?["progress"] as? NSNumber).map { Double(truncating: $0) }
@@ -280,7 +298,7 @@ public enum RunwayWire {
         case "FAILED":
             return .failed(message: json?["failure"] as? String ?? "Runway generation failed")
         default:
-            return .queued
+            return ProviderWire.unknownStatus("Runway", status)
         }
     }
 }
@@ -357,7 +375,8 @@ public enum MiniMaxWire {
             return .failed(message: "MiniMax: \((err["message"] as? String) ?? "error")")
         }
         let task = json?["task"] as? [String: Any]
-        switch task?["status"] as? String ?? "" {
+        let status = task?["status"] as? String ?? ""
+        switch status {
         case "queued": return .queued
         case "running": return .processing(progress: nil)
         case "succeeded":
@@ -369,7 +388,7 @@ public enum MiniMaxWire {
             let msg = (task?["error"] as? [String: Any])?["message"] as? String
             return .failed(message: msg.map { "MiniMax: \($0)" } ?? "MiniMax generation failed")
         default:
-            return .queued
+            return ProviderWire.unknownStatus("MiniMax", status)
         }
     }
 }

@@ -163,7 +163,20 @@ struct WorkflowRun: AsyncParsableCommand {
             return
         }
 
-        // 4. Budget approval gate (up-front estimate vs --max-spend/budget_usd)
+        // 4. Resume: load the prior journal first. An unknown run-id is a
+        //    mistake to report as such — not a budget prompt for a run that
+        //    cannot happen.
+        let journal = RunJournal()
+        var priorRecord: RunRecord?
+        if let resumeId = resume {
+            guard let record = journal.load(runId: resumeId) else {
+                Output.failMessage("Run '\(resumeId)' not found in ~/.openflix/runs", code: "run_not_found")
+            }
+            priorRecord = record
+        }
+        let runId = resume ?? UUID().uuidString
+
+        // 5. Budget approval gate (up-front estimate vs --max-spend/budget_usd)
         let limit = maxSpend ?? spec.budgetUsd
         if case .approvalRequired(let est, let lim) = WorkflowBudgetGate.check(
             estimatedTotalUSD: totalEstimate, limitUSD: limit, approved: yes
@@ -181,16 +194,6 @@ struct WorkflowRun: AsyncParsableCommand {
             }
         }
 
-        // 5. Resume: load prior journal (unknown run-id is an error)
-        let journal = RunJournal()
-        var priorRecord: RunRecord?
-        if let resumeId = resume {
-            guard let record = journal.load(runId: resumeId) else {
-                Output.failMessage("Run '\(resumeId)' not found in ~/.openflix/runs", code: "run_not_found")
-            }
-            priorRecord = record
-        }
-        let runId = resume ?? UUID().uuidString
 
         // 6. Build a project from the workflow (stages → shots) and reuse
         //    the existing DAG executor.

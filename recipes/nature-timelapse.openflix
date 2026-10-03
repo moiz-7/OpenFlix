@@ -9,7 +9,7 @@
       "promptText": "Timelapse of clouds rolling over snow-capped mountain peaks at sunrise, dramatic shadows moving across valleys, fog filling and draining from mountain passes, epic landscape cinematography, golden light transitions to cool blue tones",
       "negativePromptText": "blurry, low quality, text, watermark, people, buildings",
       "provider": "fal",
-      "model": "fal-ai/wan/v2.1/1080p",
+      "model": "fal-ai/wan-25-preview/text-to-video",
       "aspectRatio": "16:9",
       "durationSeconds": 5,
       "widthPx": 1920,

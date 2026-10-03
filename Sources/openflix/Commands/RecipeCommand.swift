@@ -513,7 +513,9 @@ struct RecipeRun: AsyncParsableCommand {
         }
         let modelInfo = prov.models.first { $0.modelId == modelID }
         if modelInfo == nil {
-            Output.failMessage("Model '\(modelID)' not found for provider '\(providerID)'. Run: openflix models --provider \(providerID)", code: "model_not_found")
+            Output.failMessage(VideoModelCatalog.retiredRefusal(model: modelID)
+                ?? "Model '\(modelID)' not found for provider '\(providerID)'. Run: openflix models --provider \(providerID)",
+                code: "model_not_found")
         }
 
         // Parse parametersJSON into extras dict

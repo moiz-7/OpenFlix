@@ -75,7 +75,7 @@ unset VORTEX_FAL_KEY 2>/dev/null || true
 unset VORTEX_API_KEY 2>/dev/null || true
 
 output=$(env -u OPENFLIX_FAL_KEY -u OPENFLIX_API_KEY -u VORTEX_FAL_KEY -u VORTEX_API_KEY $BINARY generate "test" \
-    --provider fal --model fal-ai/minimax/hailuo-02 --dry-run 2>&1 || true)
+    --provider fal --model fal-ai/wan-25-preview/text-to-video --dry-run 2>&1 || true)
 
 if echo "$output" | grep -q "no_api_key"; then
     pass "dry-run rejects missing API key"
@@ -126,7 +126,7 @@ fi
 
 # ── 8. Kling poll uses statusURL ────────────────────────
 echo "8. Kling I2V poll fix"
-if grep -q 'statusURL ?? base' Sources/openflix/Providers/KlingClient.swift; then
+if grep -q 'statusURL ?? KlingWire.pollURL' Sources/openflix/Providers/KlingClient.swift; then
     pass "Kling poll uses statusURL when available"
 else
     fail "Kling poll doesn't use statusURL"
@@ -319,6 +319,11 @@ for client in Kling Luma Runway Replicate MiniMax Fal; do
     else
         CLIENT_FILE="Sources/openflix/Providers/${client}Client.swift"
     fi
+    # Kling, Runway and MiniMax parse status in OpenFlixKit's ProviderWire,
+    # which warns through ProviderWire.unknownStatus("<Provider>", …).
+    if grep -q "ProviderWire.unknownStatus(\"$client\"" Sources/OpenFlixKit/ProviderWire.swift; then
+        continue
+    fi
     if ! grep -q 'unknown_status' "$CLIENT_FILE"; then
         ALL_WARN=false
         fail "${client}Client missing unknown_status warning"
@@ -371,7 +376,7 @@ fi
 # ── 37. Round 3: Empty prompt rejected ──────────────────
 echo "37. Round 3: Empty prompt rejected"
 output=$(env -u OPENFLIX_FAL_KEY -u OPENFLIX_API_KEY -u VORTEX_FAL_KEY -u VORTEX_API_KEY $BINARY generate "   " \
-    --provider fal --model fal-ai/minimax/hailuo-02 2>&1 || true)
+    --provider fal --model fal-ai/wan-25-preview/text-to-video 2>&1 || true)
 if echo "$output" | grep -q "invalid_input"; then
     pass "Empty prompt rejected"
 else
@@ -382,7 +387,7 @@ fi
 echo "38. Round 3: Negative retry rejected"
 # ArgumentParser requires --retry=-1 syntax for negative values
 output=$(env -u OPENFLIX_FAL_KEY -u OPENFLIX_API_KEY -u VORTEX_FAL_KEY -u VORTEX_API_KEY $BINARY generate "test" \
-    --provider fal --model fal-ai/minimax/hailuo-02 --retry=-1 2>&1 || true)
+    --provider fal --model fal-ai/wan-25-preview/text-to-video --retry=-1 2>&1 || true)
 if echo "$output" | grep -q "invalid_input"; then
     pass "Negative retry rejected"
 else
@@ -1337,7 +1342,11 @@ fi
 
 # ── 132. Round 7: No force-unwrapped URLs in Sources ─────
 echo "132. Round 7: No force-unwrapped URLs in Sources"
-force_unwraps=$(grep -r 'URL(string:.*)\!' Sources/ 2>/dev/null | grep -v '\.build' || true)
+# A `static let` over a plain https literal cannot fail at run time, and
+# ProviderWireConstantsTests proves each one parses. Anything built from
+# input — interpolation, variables — must still never be force-unwrapped.
+force_unwraps=$(grep -r 'URL(string:.*)\!' Sources/ 2>/dev/null | grep -v '\.build' \
+    | grep -vE 'static let [A-Za-z]+ = URL\(string: "https://[^"\\]*"\)!$' || true)
 if [ -z "$force_unwraps" ]; then
     pass "No force-unwrapped URLs in Sources"
 else
@@ -1346,7 +1355,10 @@ fi
 
 # ── 133. Round 7: FalClient guards dynamic URL ──────────
 echo "133. Round 7: FalClient guards dynamic URL"
-if grep -q 'guard let url = URL(string: "https://queue.fal.run' Sources/openflix/Providers/FalClient.swift; then
+# The fal URL is the queue base plus the endpoint as a path component
+# (FalWire.plan), which cannot fail — so no dynamic URL(string:) may remain.
+if grep -q 'FalWire.plan' Sources/openflix/Providers/FalClient.swift && \
+   ! grep -q 'URL(string: "https://queue.fal.run/\\(' Sources/openflix/Providers/FalClient.swift; then
     pass "FalClient guards dynamic URL"
 else
     fail "FalClient guards dynamic URL"
@@ -1426,7 +1438,10 @@ for f in Sources/openflix/Providers/RunwayClient.swift \
          Sources/openflix/Providers/LumaClient.swift \
          Sources/openflix/Providers/KlingClient.swift \
          Sources/openflix/Providers/MiniMaxClient.swift; do
-    if grep -q 'private static let base: URL' "$f"; then
+    # Each provider takes its base from OpenFlixKit's *Wire.defaultBase (a
+    # validated constant — see ProviderWireConstantsTests), optionally
+    # overridden by OPENFLIX_<PROVIDER>_BASE_URL.
+    if grep -qE 'Wire\.defaultBase' "$f"; then
         static_bases=$((static_bases + 1))
     fi
 done
@@ -1514,7 +1529,7 @@ fi
 
 # ── 152. Recipe init creates recipe with JSON id ────────
 echo "152. Recipe: recipe init creates recipe"
-RECIPE_INIT=$($BINARY recipe init "test prompt for recipe" --provider fal --model fal-ai/minimax/hailuo-02 --name "Test Recipe" 2>&1)
+RECIPE_INIT=$($BINARY recipe init "test prompt for recipe" --provider fal --model fal-ai/wan-25-preview/text-to-video --name "Test Recipe" 2>&1)
 if echo "$RECIPE_INIT" | python3 -c "import sys,json; d=json.load(sys.stdin); assert 'id' in d" 2>/dev/null; then
     pass "recipe init produces JSON with id"
 else
@@ -1920,7 +1935,7 @@ exit 1
 HOOKEOF
 chmod +x ~/.openflix/hooks/pre-generate
 hook_output=$(env OPENFLIX_API_KEY=test-key $BINARY generate "hook veto test" \
-    --provider fal --model fal-ai/minimax/hailuo-02 2>&1 || true)
+    --provider fal --model fal-ai/wan-25-preview/text-to-video 2>&1 || true)
 rm -f ~/.openflix/hooks/pre-generate
 if [ -n "$HOOKS_BACKUP" ]; then
     cp -R "$HOOKS_BACKUP"/ ~/.openflix/hooks/ 2>/dev/null || true
@@ -1977,7 +1992,7 @@ cat > "$V3_FILE" << V3EOF
     "promptText": "a {{subject}} at golden hour, {{style}} style",
     "negativePromptText": "",
     "provider": "fal",
-    "model": "fal-ai/minimax/hailuo-02",
+    "model": "fal-ai/wan-25-preview/text-to-video",
     "durationSeconds": 5,
     "args": [
       {"name": "subject", "type": "string"},
@@ -2020,7 +2035,7 @@ V3_EXPORT=$(mktemp /tmp/openflix_v3_export_XXXXXX).openflix
 $BINARY recipe export "$V3_RECIPE_ID" -o "$V3_EXPORT" > /dev/null 2>&1 || true
 V3_FMT=$(python3 -c "import json; print(json.load(open('$V3_EXPORT'))['formatVersion'])" 2>/dev/null || echo "?")
 # Fresh v2 recipe (RECIPE_ID from earlier tests was cleaned up already)
-V2_RECIPE_ID=$($BINARY recipe init "ci v2 export check" --provider fal --model fal-ai/minimax/hailuo-02 --name "CI V2 Recipe" 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])" 2>/dev/null || echo "")
+V2_RECIPE_ID=$($BINARY recipe init "ci v2 export check" --provider fal --model fal-ai/wan-25-preview/text-to-video --name "CI V2 Recipe" 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])" 2>/dev/null || echo "")
 V2_FMT="?"
 if [ -n "$V2_RECIPE_ID" ]; then
     V2_EXPORT=$(mktemp /tmp/openflix_v2_export_XXXXXX).openflix
@@ -2050,7 +2065,7 @@ cat > "$WF_FILE" << WFEOF
 WFEOF
 WF_DRY=$($BINARY workflow run "$WF_FILE" --dry-run 2>&1 || true)
 if echo "$WF_DRY" | grep -q "a red panda at golden hour, anime style" && \
-   echo "$WF_DRY" | grep -q "fal-ai/minimax/hailuo-02"; then
+   echo "$WF_DRY" | grep -q "fal-ai/wan-25-preview/text-to-video"; then
     pass "recipe stage resolves prompt+model with arg substitution"
 else
     fail "workflow recipe stage (got: $WF_DRY)"

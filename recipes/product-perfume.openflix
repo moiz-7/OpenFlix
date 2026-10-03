@@ -9,7 +9,7 @@
       "promptText": "Luxury perfume bottle rising from a pool of liquid gold, droplets cascading in slow motion as the bottle rotates to reveal its faceted crystal design. Dramatic rim lighting from behind creates a glowing halo effect, deep black background with subtle smoke wisps, macro lens capturing every refraction and surface detail.",
       "negativePromptText": "blurry, text overlay, low resolution, cluttered background",
       "provider": "runway",
-      "model": "gen4_turbo",
+      "model": "gen4.5",
       "aspectRatio": "16:9",
       "durationSeconds": 8,
       "widthPx": 1280,

@@ -48,13 +48,19 @@ final class GenerationSafetyTests: XCTestCase {
         try GenerationEngine.validateReferenceImage(nil, providerID: "fal")  // no image is fine
     }
 
+    /// Local files are delivered now (inlined or uploaded — see
+    /// `ReferenceTransport`), so the gate no longer refuses every local file.
+    /// It still refuses, before anything is billed, a file that cannot be read
+    /// and any local file for Luma, whose API takes images by public URL only.
     func testValidateReferenceImageRejectsLocalFileURL() {
-        XCTAssertThrowsError(
-            try GenerationEngine.validateReferenceImage(URL(fileURLWithPath: "/tmp/a.png"), providerID: "fal")
-        ) { error in
+        let missing = URL(fileURLWithPath: "/tmp/openflix-test-no-such-reference-\(UUID().uuidString).png")
+        XCTAssertThrowsError(try GenerationEngine.validateReferenceImage(missing, providerID: "fal")) { error in
             guard let e = error as? OpenFlixError else { return XCTFail("wrong error type") }
             XCTAssertEqual(e.code, "invalid_response")
-            XCTAssertTrue((e.errorDescription ?? "").contains("public http(s) URL"))
+            XCTAssertTrue((e.errorDescription ?? "").contains("Couldn't read the reference image"))
+        }
+        XCTAssertThrowsError(try GenerationEngine.validateReferenceImage(missing, providerID: "luma")) { error in
+            XCTAssertTrue(((error as? OpenFlixError)?.errorDescription ?? "").contains("public URL"))
         }
     }
 

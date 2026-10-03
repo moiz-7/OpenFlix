@@ -9,9 +9,9 @@
       "promptText": "Ascending crane shot rising through dense tropical rainforest layers, from the dark mossy forest floor past tangled vines and epiphytes, breaking through the canopy into brilliant sunlight. Mist hanging between massive tree trunks, a toucan taking flight as the camera passes, rich emerald greens with shafts of golden light, macro detail on dewdrops and leaf textures.",
       "negativePromptText": "artificial, CGI look, text, watermark, urban",
       "provider": "fal",
-      "model": "fal-ai/wan/v2.1/1080p",
+      "model": "fal-ai/wan-25-preview/text-to-video",
       "aspectRatio": "16:9",
-      "durationSeconds": 8,
+      "durationSeconds": 10,
       "widthPx": 1280,
       "heightPx": 720,
       "category": "nature"

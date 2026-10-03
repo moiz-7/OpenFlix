@@ -58,13 +58,21 @@ final class CostEstimateSafetyTests: XCTestCase {
                                              providerId: ProjectFixtures.unroutableProvider), 0)
     }
 
-    func testEstimateScalesLinearlyWithDurationForAKnownModel() throws {
-        let model = try XCTUnwrap(ProviderRegistry.shared.allModels.first {
-            ModelPricing.estimate(durationSeconds: 1, modelId: $0.modelId, providerId: $0.providerId) > 0
-        })
-        let one = ModelPricing.estimate(durationSeconds: 1, modelId: model.modelId, providerId: model.providerId)
-        let ten = ModelPricing.estimate(durationSeconds: 10, modelId: model.modelId, providerId: model.providerId)
-        XCTAssertEqual(ten, one * 10, accuracy: max(one * 1e-6, 1e-9))
+    /// Catalogued models bill in the clip lengths the provider actually makes
+    /// (a 1 s request is billed as the shortest clip), so cost is a step
+    /// function of duration, not a line. What must hold for the budget gate is
+    /// that asking for more never estimates less.
+    func testEstimateNeverDecreasesAsDurationGrows() throws {
+        for model in ProviderRegistry.shared.allModels {
+            var previous = 0.0
+            for seconds in stride(from: 1.0, through: 20.0, by: 1.0) {
+                let estimate = ModelPricing.estimate(durationSeconds: seconds, modelId: model.modelId,
+                                                     providerId: model.providerId)
+                XCTAssertGreaterThanOrEqual(estimate, previous - 1e-9,
+                                            "\(model.providerId) \(model.modelId) at \(seconds)s")
+                previous = estimate
+            }
+        }
     }
 
     func testTheExecutorsDefaultBillableDurationProducesANonZeroReservation() throws {

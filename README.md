@@ -38,7 +38,7 @@ openflix keys set fal your-fal-key
 ### 3. Create and run your first recipe
 ```bash
 openflix recipe init "golden hour city skyline, slow dolly" \
-  --provider fal --model fal-ai/wan/v2.1/1080p --name my-first-recipe
+  --provider fal --model fal-ai/wan-25-preview/text-to-video --name my-first-recipe
 openflix recipe run <recipe-id> --wait
 ```
 (`recipe init` prints the new recipe's id. Prefer a ready-made starting point?

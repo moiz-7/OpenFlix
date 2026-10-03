@@ -9,7 +9,7 @@
       "promptText": "Smooth gliding camera movement through a luxury sports car interior, starting at the hand-stitched leather steering wheel and sweeping across the carbon fiber dashboard. Ambient lighting strips illuminate brushed aluminum trim, the infotainment screen glows softly, macro detail on diamond-quilted seats, soft natural light from the sunroof creating gentle shadows.",
       "negativePromptText": "blurry, text overlay, low resolution, cluttered background",
       "provider": "runway",
-      "model": "gen4_turbo",
+      "model": "gen4.5",
       "aspectRatio": "16:9",
       "durationSeconds": 10,
       "widthPx": 1280,

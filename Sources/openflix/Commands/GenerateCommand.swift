@@ -10,7 +10,7 @@ struct Generate: AsyncParsableCommand {
 
         EXAMPLES
           # Quick generate and wait:
-          openflix generate "a cat on the moon" --provider fal --model fal-ai/minimax/hailuo-02 --wait
+          openflix generate "a cat on the moon" --provider fal --model fal-ai/minimax/hailuo-2.3/pro/text-to-video --wait
 
           # Stream progress events (newline-delimited JSON):
           openflix generate "..." --provider fal --model fal-ai/veo3 --stream
@@ -147,7 +147,10 @@ struct Generate: AsyncParsableCommand {
         }
         let modelInfo = prov.models.first { $0.modelId == model }
         if modelInfo == nil {
-            Output.failMessage("Model '\(model)' not found for provider '\(provider)'. Run: openflix models --provider \(provider)", code: "model_not_found")
+            // A retired id is named with its replacement, not reported as unknown.
+            Output.failMessage(VideoModelCatalog.retiredRefusal(model: model)
+                ?? "Model '\(model)' not found for provider '\(provider)'. Run: openflix models --provider \(provider)",
+                code: "model_not_found")
         }
 
         // Input validation
